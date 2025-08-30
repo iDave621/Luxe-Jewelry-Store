@@ -389,10 +389,33 @@ function App() {
         >
           Cart ({cart.length})
         </button>
+        {user && (
+          <a 
+            href="#"
+            className={`nav-link ${currentPage === 'profile' ? 'active' : ''}`}
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage('profile');
+            }}
+            style={{ cursor: 'pointer', fontWeight: 'bold', textDecoration: 'none' }}
+          >
+            Profile
+          </a>
+        )}
         
         {user ? (
           <div className="user-menu">
-            <span className="user-greeting">Hi, {user.first_name}!</span>
+            <a 
+              href="#"
+              className="profile-btn"
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage('profile');
+              }}
+              style={{ cursor: 'pointer', textDecoration: 'none' }}
+            >
+              Hi, {user.first_name}!
+            </a>
             <button className="logout-btn" onClick={logout}>
               Logout
             </button>
@@ -415,6 +438,27 @@ function App() {
 
   const renderHome = () => (
     <div className="home">
+      {user && (
+        <section 
+          className="profile-banner"
+          onClick={() => setCurrentPage('profile')}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="profile-banner-content">
+            <h3>Welcome back, {user.first_name}!</h3>
+            <p>View or update your profile information</p>
+            <button 
+              className="profile-banner-btn" 
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent double triggering
+                setCurrentPage('profile');
+              }}
+            >
+              View My Profile
+            </button>
+          </div>
+        </section>
+      )}
       <section className="hero">
         <div className="hero-content">
           <h1>Exquisite Jewelry Collection</h1>
@@ -509,6 +553,49 @@ function App() {
     );
   };
 
+  const renderProfile = () => {
+    if (!user) {
+      setCurrentPage('home');
+      return null;
+    }
+    
+    return (
+      <div className="profile-page">
+        <h2>My Profile</h2>
+        <div className="profile-card">
+          <div className="profile-details">
+            <div className="profile-field">
+              <span className="field-label">Email:</span>
+              <span className="field-value">{user.email}</span>
+            </div>
+            <div className="profile-field">
+              <span className="field-label">First Name:</span>
+              <span className="field-value">{user.first_name}</span>
+            </div>
+            <div className="profile-field">
+              <span className="field-label">Last Name:</span>
+              <span className="field-value">{user.last_name}</span>
+            </div>
+            {user.phone && (
+              <div className="profile-field">
+                <span className="field-label">Phone:</span>
+                <span className="field-value">{user.phone}</span>
+              </div>
+            )}
+            <div className="profile-field">
+              <span className="field-label">Account Created:</span>
+              <span className="field-value">{new Date(user.created_at).toLocaleDateString()}</span>
+            </div>
+            <div className="profile-field">
+              <span className="field-label">Account Status:</span>
+              <span className="field-value">{user.is_active ? 'Active' : 'Inactive'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderCurrentPage = () => {
     switch(currentPage) {
       case 'home':
@@ -517,6 +604,8 @@ function App() {
         return renderProducts();
       case 'cart':
         return renderCart();
+      case 'profile':
+        return renderProfile();
       default:
         return renderHome();
     }
