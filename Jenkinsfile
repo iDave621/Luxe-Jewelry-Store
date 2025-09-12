@@ -96,16 +96,18 @@ pipeline {
                             sh '''
                                 set -eu
                                 mkdir -p snyk-results
-                                snyk auth "$SNYK_TOKEN" || true
+                                
+                                # Set Snyk token as environment variable
+                                export SNYK_TOKEN="$SNYK_TOKEN"
 
                                 echo "Scanning Auth Service: ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --file="auth-service/Dockerfile" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+                                snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || echo "Auth scan completed with findings or errors"
 
                                 echo "Scanning Backend: ${BACKEND_IMAGE}:${VERSION}"
-                                snyk container test "${BACKEND_IMAGE}:${VERSION}" --file="backend/Dockerfile" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+                                snyk container test "${BACKEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || echo "Backend scan completed with findings or errors"
 
                                 echo "Scanning Frontend: ${FRONTEND_IMAGE}:${VERSION}"
-                                snyk container test "${FRONTEND_IMAGE}:${VERSION}" --file="jewelry-store/Dockerfile" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+                                snyk container test "${FRONTEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || echo "Frontend scan completed with findings or errors"
                             '''
                         }
 
