@@ -17,6 +17,7 @@ pipeline {
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
         VERSION = "1.0.${BUILD_NUMBER}"
+        DOCKER_HUB_CRED_ID = 'docker-hub-credentials'
     }
     
     stages {
@@ -55,55 +56,59 @@ pipeline {
             steps {
                 script {
                     try {
-                        withCredentials([
-                            string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN'),
-                            usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')
-                        ]) {
+                        // 1) Try anonymous pull first (works for public repos)
+                        sh '''
+                            set -euxo pipefail
+                            for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
+                              if ! docker image inspect "$IMG" > /dev/null 2>&1; then
+                                echo "Attempting anonymous pull for $IMG"
+                                docker pull "$IMG" || true
+                              fi
+                            done
+                        '''
+
+                        // 2) If any image still missing, try authenticated pull using configured credentials
+                        withCredentials([usernamePassword(credentialsId: DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
                             sh '''
                                 set -euxo pipefail
-                                
-                                # Ensure results directory exists
-                                mkdir -p snyk-results
-                                
-                                # Authenticate Snyk once per job
-                                snyk auth "$SNYK_TOKEN" || true
-                                
-                                # Ensure images exist locally; if not, pull from registry
                                 for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
                                   if ! docker image inspect "$IMG" > /dev/null 2>&1; then
-                                    echo "Image $IMG not found locally. Pulling from Docker Hub..."
+                                    echo "Authenticated pull for $IMG"
                                     echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                                    docker pull "$IMG"
+                                    docker pull "$IMG" || true
                                   fi
                                 done
-                                
-                                # Map image to Dockerfile path for better context
+                            '''
+                        }
+
+                        // 3) Snyk auth and scans
+                        withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
+                            sh '''
+                                set -euxo pipefail
+                                mkdir -p snyk-results
+                                snyk auth "$SNYK_TOKEN" || true
+
                                 declare -A DOCKERFILES
                                 DOCKERFILES["${AUTH_SERVICE_IMAGE}:${VERSION}"]="auth-service/Dockerfile"
                                 DOCKERFILES["${BACKEND_IMAGE}:${VERSION}"]="backend/Dockerfile"
                                 DOCKERFILES["${FRONTEND_IMAGE}:${VERSION}"]="jewelry-store/Dockerfile"
-                                
-                                # Scan images by tag with Dockerfile context; never fail the build on findings
+
                                 echo "Scanning Auth Service: ${AUTH_SERVICE_IMAGE}:${VERSION}"
                                 snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --file="${DOCKERFILES["${AUTH_SERVICE_IMAGE}:${VERSION}"]}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
-                                
+
                                 echo "Scanning Backend: ${BACKEND_IMAGE}:${VERSION}"
                                 snyk container test "${BACKEND_IMAGE}:${VERSION}" --file="${DOCKERFILES["${BACKEND_IMAGE}:${VERSION}"]}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
-                                
+
                                 echo "Scanning Frontend: ${FRONTEND_IMAGE}:${VERSION}"
                                 snyk container test "${FRONTEND_IMAGE}:${VERSION}" --file="${DOCKERFILES["${FRONTEND_IMAGE}:${VERSION}"]}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                             '''
-                            
-                            // Archive scan results if present
-                            archiveArtifacts artifacts: 'snyk-results/*.json', allowEmptyArchive: true
-                            
-                            // Optionally ignore specific vulnerabilities by ID
-                            // sh "snyk ignore --id=SNYK-XXXX-YYYY"
                         }
+
+                        // Archive scan results (if produced)
+                        archiveArtifacts artifacts: 'snyk-results/*.json', allowEmptyArchive: true
+
                     } catch (Exception e) {
                         echo "Snyk scan found security issues: ${e.message}"
-                        
-                        // For now, we'll just record the issue and continue
                         echo "Continuing pipeline execution despite security findings..."
                     }
                 }
