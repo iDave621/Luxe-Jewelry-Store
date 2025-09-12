@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'iDave621/jenkins-agent'
+            image 'jenkins/agent:latest'
             args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
@@ -158,16 +158,26 @@ pipeline {
         always {
             node(null) {
                 // Clean up Docker images
-                sh '''
-                    # Clean auth-service images
-                    docker rmi ${AUTH_SERVICE_IMAGE}:${VERSION} ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT} ${AUTH_SERVICE_IMAGE}:latest || true
-                    
-                    # Clean backend images
-                    docker rmi ${BACKEND_IMAGE}:${VERSION} ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT} ${BACKEND_IMAGE}:latest || true
-                    
-                    # Clean frontend images
-                    docker rmi ${FRONTEND_IMAGE}:${VERSION} ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT} ${FRONTEND_IMAGE}:latest || true
-                '''
+                script {
+                    try {
+                        // Clean auth-service images
+                        sh "docker rmi ${AUTH_SERVICE_IMAGE}:${VERSION} || true"
+                        sh "docker rmi ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT} || true"
+                        sh "docker rmi ${AUTH_SERVICE_IMAGE}:latest || true"
+                        
+                        // Clean backend images
+                        sh "docker rmi ${BACKEND_IMAGE}:${VERSION} || true"
+                        sh "docker rmi ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT} || true"
+                        sh "docker rmi ${BACKEND_IMAGE}:latest || true"
+                        
+                        // Clean frontend images
+                        sh "docker rmi ${FRONTEND_IMAGE}:${VERSION} || true"
+                        sh "docker rmi ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT} || true"
+                        sh "docker rmi ${FRONTEND_IMAGE}:latest || true"
+                    } catch (Exception e) {
+                        echo "Error cleaning up Docker images: ${e.message}"
+                    }
+                }
                 cleanWs()
             }
         }
