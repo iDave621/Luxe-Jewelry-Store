@@ -73,14 +73,21 @@ pipeline {
         
         stage('Push Images to Registry') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                    sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                    sh 'docker push ${AUTH_SERVICE_IMAGE}:${VERSION}'
-                    sh 'docker push ${AUTH_SERVICE_IMAGE}:latest'
-                    sh 'docker push ${BACKEND_IMAGE}:${VERSION}'
-                    sh 'docker push ${BACKEND_IMAGE}:latest'
-                    sh 'docker push ${FRONTEND_IMAGE}:${VERSION}'
-                    sh 'docker push ${FRONTEND_IMAGE}:latest'
+                script {
+                    try {
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                            sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                            sh 'docker push ${AUTH_SERVICE_IMAGE}:${VERSION}'
+                            sh 'docker push ${AUTH_SERVICE_IMAGE}:latest'
+                            sh 'docker push ${BACKEND_IMAGE}:${VERSION}'
+                            sh 'docker push ${BACKEND_IMAGE}:latest'
+                            sh 'docker push ${FRONTEND_IMAGE}:${VERSION}'
+                            sh 'docker push ${FRONTEND_IMAGE}:latest'
+                        }
+                    } catch (Exception e) {
+                        echo "Docker Hub push skipped: ${e.message}"
+                        echo "Continue pipeline execution without failing the build"
+                    }
                 }
             }
         }
