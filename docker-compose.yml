@@ -1,45 +1,30 @@
-version: '3.8'
-
+version: '3'
 services:
-  auth-service:
-    build: ./auth-service
-    ports:
-      - "8001:8001"
-    environment:
-      - JWT_SECRET_KEY=your-secret-key-change-in-production
+  jenkins-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile-agent
+    container_name: jenkins-agent
+    restart: unless-stopped
     volumes:
-      - ./auth-service:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins-agent-data:/home/jenkins/agent
     networks:
-      - luxe-network
-
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    environment:
-      - AUTH_SERVICE_URL=http://auth-service:8001
-    volumes:
-      - ./backend:/app
-    networks:
-      - luxe-network
-    depends_on:
-      - auth-service
-
-  frontend:
-    build: ./jewelry-store
-    ports:
-      - "3000:80"
-    environment:
-      - REACT_APP_API_BASE_URL=http://localhost:8000/api
-      - REACT_APP_AUTH_BASE_URL=http://localhost:8001/auth
-      - REACT_APP_BACKEND_HOST=localhost
-      - REACT_APP_BACKEND_PORT=8000
-    depends_on:
-      - auth-service
-      - backend
-    networks:
-      - luxe-network
+      - jenkins
+    user: root
+    command: >
+      /bin/bash -c "
+        apt-get update && apt-get install -y curl &&
+        cd /home/jenkins/agent &&
+        echo '647e04c3154c54609176a9aa306b48b028005f0fcb86beeabde85cb8bda64809' > secret-file &&
+        chown -R jenkins:jenkins /home/jenkins/agent &&
+        curl -sO http://172.18.0.2:8080/jnlpJars/agent.jar &&
+        su jenkins -c 'java -jar /home/jenkins/agent/agent.jar -url http://172.18.0.2:8080/ -secret @secret-file -name "docker-agent" -webSocket -workDir "/home/jenkins/agent"'
+      "
 
 networks:
-  luxe-network:
-    driver: bridge
+  jenkins:
+    external: true
+
+volumes:
+  jenkins-agent-data:
