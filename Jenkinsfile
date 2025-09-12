@@ -1,8 +1,7 @@
 pipeline {
     agent {
-        docker {
-            image 'iDave621/jenkins-agent:latest'
-            args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+        node {
+            label 'docker-agent'
         }
     }
     
