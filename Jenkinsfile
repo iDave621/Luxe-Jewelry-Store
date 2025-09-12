@@ -18,20 +18,20 @@ pipeline {
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
         VERSION = "1.0.${BUILD_NUMBER}"
-        GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
     }
     
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
+                sh 'git config --global --add safe.directory ${WORKSPACE}'
             }
         }
         
         stage('Build Auth Service') {
             steps {
                 dir('auth-service') {
-                    sh 'docker build -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT} -t ${AUTH_SERVICE_IMAGE}:latest .'
+                    sh 'docker build -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
                 }
             }
         }
@@ -39,7 +39,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('backend') {
-                    sh 'docker build -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT} -t ${BACKEND_IMAGE}:latest .'
+                    sh 'docker build -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
                 }
             }
         }
@@ -47,7 +47,7 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('jewelry-store') {
-                    sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT} -t ${FRONTEND_IMAGE}:latest .'
+                    sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
                 }
             }
         }
@@ -91,17 +91,14 @@ pipeline {
                             sh '''
                                 # Push auth-service images
                                 docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
-                                docker push ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT}
                                 docker push ${AUTH_SERVICE_IMAGE}:latest
                                 
                                 # Push backend images
                                 docker push ${BACKEND_IMAGE}:${VERSION}
-                                docker push ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT}
                                 docker push ${BACKEND_IMAGE}:latest
                                 
                                 # Push frontend images
                                 docker push ${FRONTEND_IMAGE}:${VERSION}
-                                docker push ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT}
                                 docker push ${FRONTEND_IMAGE}:latest
                             '''
                         }
@@ -160,20 +157,11 @@ pipeline {
                 // Clean up Docker images
                 script {
                     try {
-                        // Clean auth-service images
-                        sh "docker rmi ${AUTH_SERVICE_IMAGE}:${VERSION} || true"
-                        sh "docker rmi ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT} || true"
-                        sh "docker rmi ${AUTH_SERVICE_IMAGE}:latest || true"
+                        // Find and remove all unused images
+                        sh 'docker image prune -f'
                         
-                        // Clean backend images
-                        sh "docker rmi ${BACKEND_IMAGE}:${VERSION} || true"
-                        sh "docker rmi ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT} || true"
-                        sh "docker rmi ${BACKEND_IMAGE}:latest || true"
-                        
-                        // Clean frontend images
-                        sh "docker rmi ${FRONTEND_IMAGE}:${VERSION} || true"
-                        sh "docker rmi ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT} || true"
-                        sh "docker rmi ${FRONTEND_IMAGE}:latest || true"
+                        // Alternatively, you can use a more specific cleanup
+                        // sh "docker images -a | grep \"iDave621/luxe-jewelry\" | awk '{print \$3}' | xargs -r docker rmi -f || true"
                     } catch (Exception e) {
                         echo "Error cleaning up Docker images: ${e.message}"
                     }
