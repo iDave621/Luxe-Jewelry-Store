@@ -1,5 +1,16 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'iDave621/jenkins-agent'
+            args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+    
+    options {
+        buildDiscarder(logRotator(daysToKeepStr: '30'))
+        disableConcurrentBuilds()
+        timestamps()
+    }
     
     environment {
         DOCKER_REGISTRY = "iDave621"
@@ -7,6 +18,7 @@ pipeline {
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
         VERSION = "1.0.${BUILD_NUMBER}"
+        GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
     }
     
     stages {
@@ -19,7 +31,7 @@ pipeline {
         stage('Build Auth Service') {
             steps {
                 dir('auth-service') {
-                    sh 'docker build -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
+                    sh 'docker build -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT} -t ${AUTH_SERVICE_IMAGE}:latest .'
                 }
             }
         }
@@ -27,7 +39,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('backend') {
-                    sh 'docker build -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
+                    sh 'docker build -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT} -t ${BACKEND_IMAGE}:latest .'
                 }
             }
         }
@@ -35,7 +47,7 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('jewelry-store') {
-                    sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
+                    sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT} -t ${FRONTEND_IMAGE}:latest .'
                 }
             }
         }
@@ -76,12 +88,22 @@ pipeline {
                     try {
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
                             sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                            sh 'docker push ${AUTH_SERVICE_IMAGE}:${VERSION}'
-                            sh 'docker push ${AUTH_SERVICE_IMAGE}:latest'
-                            sh 'docker push ${BACKEND_IMAGE}:${VERSION}'
-                            sh 'docker push ${BACKEND_IMAGE}:latest'
-                            sh 'docker push ${FRONTEND_IMAGE}:${VERSION}'
-                            sh 'docker push ${FRONTEND_IMAGE}:latest'
+                            sh '''
+                                # Push auth-service images
+                                docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
+                                docker push ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT}
+                                docker push ${AUTH_SERVICE_IMAGE}:latest
+                                
+                                # Push backend images
+                                docker push ${BACKEND_IMAGE}:${VERSION}
+                                docker push ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT}
+                                docker push ${BACKEND_IMAGE}:latest
+                                
+                                # Push frontend images
+                                docker push ${FRONTEND_IMAGE}:${VERSION}
+                                docker push ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT}
+                                docker push ${FRONTEND_IMAGE}:latest
+                            '''
                         }
                     } catch (Exception e) {
                         echo "Docker Hub push skipped: ${e.message}"
@@ -135,6 +157,17 @@ pipeline {
     post {
         always {
             node(null) {
+                // Clean up Docker images
+                sh '''
+                    # Clean auth-service images
+                    docker rmi ${AUTH_SERVICE_IMAGE}:${VERSION} ${AUTH_SERVICE_IMAGE}:${GIT_COMMIT_SHORT} ${AUTH_SERVICE_IMAGE}:latest || true
+                    
+                    # Clean backend images
+                    docker rmi ${BACKEND_IMAGE}:${VERSION} ${BACKEND_IMAGE}:${GIT_COMMIT_SHORT} ${BACKEND_IMAGE}:latest || true
+                    
+                    # Clean frontend images
+                    docker rmi ${FRONTEND_IMAGE}:${VERSION} ${FRONTEND_IMAGE}:${GIT_COMMIT_SHORT} ${FRONTEND_IMAGE}:latest || true
+                '''
                 cleanWs()
             }
         }
