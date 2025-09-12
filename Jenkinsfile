@@ -51,6 +51,33 @@ pipeline {
             }
         }
         
+        stage('Security Scan with Snyk') {
+            steps {
+                script {
+                    try {
+                        withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
+                            // Scan Auth Service Image
+                            sh "snyk container test ${AUTH_SERVICE_IMAGE}:${VERSION} --file=auth-service/Dockerfile --severity-threshold=high"
+                            
+                            // Scan Backend Image
+                            sh "snyk container test ${BACKEND_IMAGE}:${VERSION} --file=backend/Dockerfile --severity-threshold=high"
+                            
+                            // Scan Frontend Image
+                            sh "snyk container test ${FRONTEND_IMAGE}:${VERSION} --file=jewelry-store/Dockerfile --severity-threshold=high"
+                            
+                            // Ignore specific vulnerabilities (example)
+                            // sh "snyk ignore --id=SNYK-DEBIAN-CURL-1585138"
+                        }
+                    } catch (Exception e) {
+                        echo "Snyk scan found security issues: ${e.message}"
+                        
+                        // For now, we'll just record the issue and continue
+                        echo "Continuing pipeline execution despite security findings..."
+                    }
+                }
+            }
+        }
+        
         stage('Test Auth Service') {
             steps {
                 dir('auth-service') {
