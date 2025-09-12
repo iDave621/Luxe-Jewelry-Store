@@ -91,29 +91,48 @@ pipeline {
                             echo 'All images present locally after anonymous pull; skipping authenticated pull'
                         }
 
-                        // 3) Snyk auth and scans (authenticated remote scans for private Docker Hub)
-                        withCredentials([
-                            string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN'),
-                            usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')
-                        ]) {
-                            sh '''
-                                set -eu
-                                mkdir -p snyk-results
-                                
-                                # Provide auth for Snyk and Docker Hub
-                                export SNYK_TOKEN="$SNYK_TOKEN"
-                                echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin || true
+                        // 3) Snyk auth and scans (prefer authenticated remote; fallback to unauthenticated if creds missing)
+                        withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
+                            try {
+                                withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                    sh '''
+                                        set -eu
+                                        mkdir -p snyk-results
+                                        
+                                        # Provide auth for Snyk and Docker Hub
+                                        export SNYK_TOKEN="$SNYK_TOKEN"
+                                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin || true
 
-                                # Use authenticated registry-based scanning
-                                echo "Scanning Auth Service (remote, auth): ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+                                        # Authenticated registry-based scanning
+                                        echo "Scanning Auth Service (remote, auth): ${AUTH_SERVICE_IMAGE}:${VERSION}"
+                                        snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
 
-                                echo "Scanning Backend (remote, auth): ${BACKEND_IMAGE}:${VERSION}"
-                                snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+                                        echo "Scanning Backend (remote, auth): ${BACKEND_IMAGE}:${VERSION}"
+                                        snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
 
-                                echo "Scanning Frontend (remote, auth): ${FRONTEND_IMAGE}:${VERSION}"
-                                snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
-                            '''
+                                        echo "Scanning Frontend (remote, auth): ${FRONTEND_IMAGE}:${VERSION}"
+                                        snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+                                    '''
+                                }
+                            } catch (Exception credErr) {
+                                echo "Docker Hub credential '${env.DOCKER_HUB_CRED_ID}' not found or inaccessible; running unauthenticated remote scans (public repos only)"
+                                sh '''
+                                    set -eu
+                                    mkdir -p snyk-results
+                                    
+                                    # Snyk auth via env only
+                                    export SNYK_TOKEN="$SNYK_TOKEN"
+
+                                    echo "Scanning Auth Service (remote): ${AUTH_SERVICE_IMAGE}:${VERSION}"
+                                    snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+
+                                    echo "Scanning Backend (remote): ${BACKEND_IMAGE}:${VERSION}"
+                                    snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+
+                                    echo "Scanning Frontend (remote): ${FRONTEND_IMAGE}:${VERSION}"
+                                    snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+                                '''
+                            }
                         }
 
                         // Archive scan results (if produced)
