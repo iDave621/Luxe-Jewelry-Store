@@ -68,17 +68,27 @@ pipeline {
                         '''
 
                         // 2) If any image still missing, try authenticated pull using configured credentials
-                        withCredentials([usernamePassword(credentialsId: DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                            sh '''
-                                set -eu
-                                for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
-                                  if ! docker image inspect "$IMG" > /dev/null 2>&1; then
-                                    echo "Authenticated pull for $IMG"
+                        def needAuthPull = sh(
+                            script: 'for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do docker image inspect "$IMG" > /dev/null 2>&1 || exit 1; done; exit 0',
+                            returnStatus: true
+                        )
+
+                        if (needAuthPull != 0) {
+                            echo "Attempting authenticated pull using credentials ID: ${env.DOCKER_HUB_CRED_ID}"
+                            withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                sh '''
+                                    set -eu
                                     echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                                    docker pull "$IMG" || true
-                                  fi
-                                done
-                            '''
+                                    for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
+                                      if ! docker image inspect "$IMG" > /dev/null 2>&1; then
+                                        echo "Authenticated pull for $IMG"
+                                        docker pull "$IMG" || true
+                                      fi
+                                    done
+                                '''
+                            }
+                        } else {
+                            echo 'All images present locally after anonymous pull; skipping authenticated pull'
                         }
 
                         // 3) Snyk auth and scans
@@ -88,19 +98,14 @@ pipeline {
                                 mkdir -p snyk-results
                                 snyk auth "$SNYK_TOKEN" || true
 
-                                declare -A DOCKERFILES
-                                DOCKERFILES["${AUTH_SERVICE_IMAGE}:${VERSION}"]="auth-service/Dockerfile"
-                                DOCKERFILES["${BACKEND_IMAGE}:${VERSION}"]="backend/Dockerfile"
-                                DOCKERFILES["${FRONTEND_IMAGE}:${VERSION}"]="jewelry-store/Dockerfile"
-
                                 echo "Scanning Auth Service: ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --file="${DOCKERFILES["${AUTH_SERVICE_IMAGE}:${VERSION}"]}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+                                snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --file="auth-service/Dockerfile" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
 
                                 echo "Scanning Backend: ${BACKEND_IMAGE}:${VERSION}"
-                                snyk container test "${BACKEND_IMAGE}:${VERSION}" --file="${DOCKERFILES["${BACKEND_IMAGE}:${VERSION}"]}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+                                snyk container test "${BACKEND_IMAGE}:${VERSION}" --file="backend/Dockerfile" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
 
                                 echo "Scanning Frontend: ${FRONTEND_IMAGE}:${VERSION}"
-                                snyk container test "${FRONTEND_IMAGE}:${VERSION}" --file="${DOCKERFILES["${FRONTEND_IMAGE}:${VERSION}"]}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+                                snyk container test "${FRONTEND_IMAGE}:${VERSION}" --file="jewelry-store/Dockerfile" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                             '''
                         }
 
