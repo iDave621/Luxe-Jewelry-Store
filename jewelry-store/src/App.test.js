@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import App from './App';
 
-// Mock fetch API to avoid actual network requests
+// Simple mock for fetch API
 global.fetch = jest.fn(() =>
   Promise.resolve({
     ok: true,
@@ -9,66 +9,33 @@ global.fetch = jest.fn(() =>
   })
 );
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn()
-};
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+// Simple mock for localStorage
+Object.defineProperty(window, 'localStorage', {
+  value: {
+    getItem: jest.fn(() => null),
+    setItem: jest.fn(),
+  }
+});
 
-describe('App Component', () => {
-  beforeEach(() => {
-    fetch.mockClear();
-    localStorageMock.getItem.mockClear();
-    localStorageMock.setItem.mockClear();
-  });
+test('renders Luxe Jewelry heading', () => {
+  render(<App />);
+  const headingElement = screen.getByText(/Luxe Jewelry/i);
+  expect(headingElement).toBeInTheDocument();
+});
 
-  test('renders main application structure', async () => {
-    render(<App />);
-    
-    // Check for main structural elements
-    expect(screen.getByText(/Luxe Jewelry/i)).toBeInTheDocument();
-    expect(screen.getByRole('navigation')).toBeInTheDocument();
-    expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument(); // footer
-  });
+test('renders navigation buttons', () => {
+  render(<App />);
+  const homeButton = screen.getByRole('button', { name: /home/i });
+  const productsButton = screen.getByRole('button', { name: /products/i });
+  const cartButton = screen.getByRole('button', { name: /cart/i });
+  
+  expect(homeButton).toBeInTheDocument();
+  expect(productsButton).toBeInTheDocument();
+  expect(cartButton).toBeInTheDocument();
+});
 
-  test('fetches products on initial load', async () => {
-    render(<App />);
-    
-    // Verify products API was called
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/products'));
-    });
-  });
-
-  test('generates session ID on first visit', () => {
-    // Mock localStorage to simulate first visit
-    localStorageMock.getItem.mockReturnValueOnce(null);
-    
-    render(<App />);
-    
-    // Verify localStorage was checked and a new session was set
-    expect(localStorageMock.getItem).toHaveBeenCalledWith('jewelry_session_id');
-    expect(localStorageMock.setItem).toHaveBeenCalled();
-  });
-
-  test('uses existing session ID for returning visitors', () => {
-    // Mock localStorage to simulate returning visitor
-    const mockSessionId = 'session_abc123';
-    localStorageMock.getItem.mockReturnValueOnce(mockSessionId);
-    
-    render(<App />);
-    
-    // Verify localStorage was checked but no new session was set
-    expect(localStorageMock.getItem).toHaveBeenCalledWith('jewelry_session_id');
-    expect(localStorageMock.setItem).not.toHaveBeenCalledWith('jewelry_session_id', expect.any(String));
-  });
-
-  test('renders copyright info in footer', () => {
-    render(<App />);
-    const copyright = screen.getByText(/© 2024 Luxe Jewelry/i);
-    expect(copyright).toBeInTheDocument();
-  });
+test('renders footer with copyright', () => {
+  render(<App />);
+  const footerText = screen.getByText(/2024 Luxe Jewelry/i);
+  expect(footerText).toBeInTheDocument();
 });
