@@ -98,21 +98,31 @@ pipeline {
                         sh 'echo "Deploying to development environment"'
                         // Here you would typically update your Docker Compose file 
                         // or Kubernetes manifests with the new image tags
-                        sh '''
-                            echo "Using Docker Compose for deployment..."
-                            # Check if docker-compose is available
-                            if command -v docker-compose &> /dev/null; then
-                                docker-compose down || true
-                                docker-compose up -d
-                            elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-                                # Try using docker compose subcommand (Docker CLI plugin)
-                                docker compose down || true
-                                docker compose up -d
-                            else
-                                echo "WARNING: docker-compose command not found. Skipping deployment."
-                                echo "Please install docker-compose or Docker CLI with compose plugin."
-                            fi
-                        '''
+                        
+                        // First check if docker-compose exists
+                        def dockerComposeExists = sh(script: 'command -v docker-compose', returnStatus: true) == 0
+                        def dockerComposePluginExists = false
+                        
+                        if (!dockerComposeExists) {
+                            // Check if docker CLI with compose plugin exists
+                            def dockerExists = sh(script: 'command -v docker', returnStatus: true) == 0
+                            if (dockerExists) {
+                                dockerComposePluginExists = sh(script: 'docker compose version', returnStatus: true) == 0
+                            }
+                        }
+                        
+                        if (dockerComposeExists) {
+                            echo "Using docker-compose command"
+                            sh 'docker-compose down || true'
+                            sh 'docker-compose up -d'
+                        } else if (dockerComposePluginExists) {
+                            echo "Using docker compose plugin"
+                            sh 'docker compose down || true'
+                            sh 'docker compose up -d'
+                        } else {
+                            echo "WARNING: docker-compose command not found. Skipping deployment."
+                            echo "Please install docker-compose or Docker CLI with compose plugin."
+                        }
                     } catch (Exception e) {
                         echo "Deployment step failed: ${e.message}"
                         echo "Continuing with pipeline execution."
