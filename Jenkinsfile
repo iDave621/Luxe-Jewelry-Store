@@ -101,7 +101,7 @@ pipeline {
     
     post {
         always {
-            node {
+            node(null) {
                 sh 'docker logout'
                 cleanWs()
             }
