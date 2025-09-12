@@ -73,13 +73,15 @@ pipeline {
         
         stage('Push Images to Registry') {
             steps {
-                sh 'echo $DOCKER_HUB_CREDS_PSW | docker login -u $DOCKER_HUB_CREDS_USR --password-stdin'
-                sh 'docker push ${AUTH_SERVICE_IMAGE}:${VERSION}'
-                sh 'docker push ${AUTH_SERVICE_IMAGE}:latest'
-                sh 'docker push ${BACKEND_IMAGE}:${VERSION}'
-                sh 'docker push ${BACKEND_IMAGE}:latest'
-                sh 'docker push ${FRONTEND_IMAGE}:${VERSION}'
-                sh 'docker push ${FRONTEND_IMAGE}:latest'
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                    sh 'docker push ${AUTH_SERVICE_IMAGE}:${VERSION}'
+                    sh 'docker push ${AUTH_SERVICE_IMAGE}:latest'
+                    sh 'docker push ${BACKEND_IMAGE}:${VERSION}'
+                    sh 'docker push ${BACKEND_IMAGE}:latest'
+                    sh 'docker push ${FRONTEND_IMAGE}:${VERSION}'
+                    sh 'docker push ${FRONTEND_IMAGE}:latest'
+                }
             }
         }
         
