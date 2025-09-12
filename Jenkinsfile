@@ -248,20 +248,24 @@ pipeline {
     
     post {
         always {
-            node('docker-agent') {
-                // Clean up Docker images
-                script {
-                    try {
-                        // Find and remove all unused images
-                        sh 'docker image prune -f'
-                        
-                        // Alternatively, you can use a more specific cleanup
-                        // sh "docker images -a | grep \"iDave621/luxe-jewelry\" | awk '{print \$3}' | xargs -r docker rmi -f || true"
-                    } catch (Exception e) {
-                        echo "Error cleaning up Docker images: ${e.message}"
+            // Ensure post actions cannot linger
+            timeout(time: 1, unit: 'MINUTES') {
+                node('docker-agent') {
+                    // Clean up Docker images (short timeout, never fail build)
+                    script {
+                        try {
+                            timeout(time: 20, unit: 'SECONDS') {
+                                sh 'docker image prune -f || true'
+                            }
+                        } catch (Exception e) {
+                            echo "Error cleaning up Docker images: ${e.message}"
+                        }
+                    }
+                    // Workspace cleanup (short timeout)
+                    timeout(time: 20, unit: 'SECONDS') {
+                        cleanWs()
                     }
                 }
-                cleanWs()
             }
         }
         success {
