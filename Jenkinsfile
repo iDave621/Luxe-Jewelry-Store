@@ -153,7 +153,7 @@ pipeline {
     
     post {
         always {
-            node(null) {
+            node('docker-agent') {
                 // Clean up Docker images
                 script {
                     try {
