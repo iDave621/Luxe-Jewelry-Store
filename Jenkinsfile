@@ -55,14 +55,16 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 script {
-                    // Install test requirements and run pytest
+                    // Use a virtual environment to avoid PEP 668 (externally-managed-environment)
                     sh '''
                         set -eu
-                        python3 -m pip install --user --upgrade pip
-                        python3 -m pip install --user pytest unittest2
+                        python3 -m venv .venv
+                        . .venv/bin/activate
+                        python -m pip install --upgrade pip
+                        python -m pip install pytest unittest2
                         
                         # Run tests and produce JUnit XML
-                        python3 -m pytest --junitxml results.xml tests/*.py || true
+                        python -m pytest --junitxml results.xml tests/*.py || true
                     '''
                 }
             }
