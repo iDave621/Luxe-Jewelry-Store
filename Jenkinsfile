@@ -56,25 +56,31 @@ pipeline {
                 script {
                     try {
                         withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
-                            // Scan actual built Docker images directly using image IDs
+                            // Use Snyk to scan Dockerfiles with docker-plugin
                             sh '''
-                                # Get image IDs to scan
-                                AUTH_IMAGE_ID=$(docker images ${AUTH_SERVICE_IMAGE}:${VERSION} --format "{{.ID}}")
-                                BACKEND_IMAGE_ID=$(docker images ${BACKEND_IMAGE}:${VERSION} --format "{{.ID}}")
-                                FRONTEND_IMAGE_ID=$(docker images ${FRONTEND_IMAGE}:${VERSION} --format "{{.ID}}")
+                                # Create output directory for scan results
+                                mkdir -p snyk-results
                                 
-                                echo "Scanning Auth Service Image: ${AUTH_IMAGE_ID}"
-                                snyk container test ${AUTH_IMAGE_ID} --severity-threshold=high --json-file-output=auth-scan-results.json || true
+                                # Test auth service Dockerfile
+                                cd auth-service
+                                echo "Scanning Auth Service Dockerfile"
+                                snyk test --docker --file=Dockerfile --json-file-output=../snyk-results/auth-scan-results.json || true
                                 
-                                echo "Scanning Backend Image: ${BACKEND_IMAGE_ID}"
-                                snyk container test ${BACKEND_IMAGE_ID} --severity-threshold=high --json-file-output=backend-scan-results.json || true
+                                # Test backend Dockerfile
+                                cd ../backend
+                                echo "Scanning Backend Dockerfile"
+                                snyk test --docker --file=Dockerfile --json-file-output=../snyk-results/backend-scan-results.json || true
                                 
-                                echo "Scanning Frontend Image: ${FRONTEND_IMAGE_ID}"
-                                snyk container test ${FRONTEND_IMAGE_ID} --severity-threshold=high --json-file-output=frontend-scan-results.json || true
+                                # Test frontend Dockerfile
+                                cd ../jewelry-store
+                                echo "Scanning Frontend Dockerfile"
+                                snyk test --docker --file=Dockerfile --json-file-output=../snyk-results/frontend-scan-results.json || true
+                                
+                                cd ..
                             '''
                             
                             // Archiving scan results
-                            archiveArtifacts artifacts: '*-scan-results.json', allowEmptyArchive: true
+                            archiveArtifacts artifacts: 'snyk-results/*.json', allowEmptyArchive: true
                             
                             // Note: You can add specific vulnerability ignores
                             // sh "snyk ignore --id=SNYK-DEBIAN-CURL-1585138"
