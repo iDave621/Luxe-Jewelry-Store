@@ -58,7 +58,7 @@ pipeline {
                     try {
                         // 1) Try anonymous pull first (works for public repos)
                         sh '''
-                            set -euxo pipefail
+                            set -eu
                             for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
                               if ! docker image inspect "$IMG" > /dev/null 2>&1; then
                                 echo "Attempting anonymous pull for $IMG"
@@ -70,7 +70,7 @@ pipeline {
                         // 2) If any image still missing, try authenticated pull using configured credentials
                         withCredentials([usernamePassword(credentialsId: DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
                             sh '''
-                                set -euxo pipefail
+                                set -eu
                                 for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
                                   if ! docker image inspect "$IMG" > /dev/null 2>&1; then
                                     echo "Authenticated pull for $IMG"
@@ -84,7 +84,7 @@ pipeline {
                         // 3) Snyk auth and scans
                         withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
                             sh '''
-                                set -euxo pipefail
+                                set -eu
                                 mkdir -p snyk-results
                                 snyk auth "$SNYK_TOKEN" || true
 
