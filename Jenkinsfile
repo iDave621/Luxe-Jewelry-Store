@@ -55,16 +55,30 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 script {
-                    // Use a virtual environment to avoid PEP 668 (externally-managed-environment)
+                    // Robust installation: try venv; if unavailable, fallback to pip with --break-system-packages
                     sh '''
                         set -eu
-                        python3 -m venv .venv
-                        . .venv/bin/activate
-                        python -m pip install --upgrade pip
-                        python -m pip install pytest unittest2
-                        
+                        USE_VENV=0
+                        if python3 -m venv .venv 2>/dev/null; then
+                          USE_VENV=1
+                        fi
+
+                        if [ "$USE_VENV" = "1" ] && [ -x .venv/bin/python ]; then
+                          echo "Using virtual environment for tests"
+                          . .venv/bin/activate
+                          python -m pip install --upgrade pip
+                          python -m pip install -r requirements-dev.txt
+                          TEST_PY="python"
+                        else
+                          echo "venv unavailable; falling back to system Python with --break-system-packages"
+                          # Attempt install with break-system-packages (PEP 668 override)
+                          python3 -m pip install --upgrade pip --break-system-packages || true
+                          python3 -m pip install -r requirements-dev.txt --break-system-packages
+                          TEST_PY="python3"
+                        fi
+
                         # Run tests and produce JUnit XML
-                        python -m pytest --junitxml results.xml tests/*.py || true
+                        $TEST_PY -m pytest --junitxml results.xml tests/*.py || true
                     '''
                 }
             }
