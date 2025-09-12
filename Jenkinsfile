@@ -56,33 +56,27 @@ pipeline {
                 script {
                     try {
                         withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
-                            // Scan Auth Service Image
-                            sh "snyk container test ${AUTH_SERVICE_IMAGE}:${VERSION} --project-name=auth-service --file=auth-service/Dockerfile --severity-threshold=high || true"
-                            
-                            // Scan Backend Image
-                            sh "snyk container test ${BACKEND_IMAGE}:${VERSION} --project-name=backend --file=backend/Dockerfile --severity-threshold=high || true"
-                            
-                            // Scan Frontend Image
-                            sh "snyk container test ${FRONTEND_IMAGE}:${VERSION} --project-name=frontend --file=jewelry-store/Dockerfile --severity-threshold=high || true"
-                            
-                            // Alternative approach using docker save if above fails
-                            echo "If the direct tests failed, trying alternative approach with docker save"
+                            // Scan actual built Docker images directly using image IDs
                             sh '''
-                                # Save images to tar files
-                                docker save ${AUTH_SERVICE_IMAGE}:${VERSION} -o auth-service-image.tar
-                                docker save ${BACKEND_IMAGE}:${VERSION} -o backend-image.tar
-                                docker save ${FRONTEND_IMAGE}:${VERSION} -o frontend-image.tar
+                                # Get image IDs to scan
+                                AUTH_IMAGE_ID=$(docker images ${AUTH_SERVICE_IMAGE}:${VERSION} --format "{{.ID}}")
+                                BACKEND_IMAGE_ID=$(docker images ${BACKEND_IMAGE}:${VERSION} --format "{{.ID}}")
+                                FRONTEND_IMAGE_ID=$(docker images ${FRONTEND_IMAGE}:${VERSION} --format "{{.ID}}")
                                 
-                                # Scan the saved images
-                                snyk container test --file=auth-service/Dockerfile --project-name=auth-service --severity-threshold=high auth-service-image.tar || true
-                                snyk container test --file=backend/Dockerfile --project-name=backend --severity-threshold=high backend-image.tar || true
-                                snyk container test --file=jewelry-store/Dockerfile --project-name=frontend --severity-threshold=high frontend-image.tar || true
+                                echo "Scanning Auth Service Image: ${AUTH_IMAGE_ID}"
+                                snyk container test ${AUTH_IMAGE_ID} --severity-threshold=high --json-file-output=auth-scan-results.json || true
                                 
-                                # Clean up tar files
-                                rm -f auth-service-image.tar backend-image.tar frontend-image.tar
+                                echo "Scanning Backend Image: ${BACKEND_IMAGE_ID}"
+                                snyk container test ${BACKEND_IMAGE_ID} --severity-threshold=high --json-file-output=backend-scan-results.json || true
+                                
+                                echo "Scanning Frontend Image: ${FRONTEND_IMAGE_ID}"
+                                snyk container test ${FRONTEND_IMAGE_ID} --severity-threshold=high --json-file-output=frontend-scan-results.json || true
                             '''
                             
-                            // Ignore specific vulnerabilities (example)
+                            // Archiving scan results
+                            archiveArtifacts artifacts: '*-scan-results.json', allowEmptyArchive: true
+                            
+                            // Note: You can add specific vulnerability ignores
                             // sh "snyk ignore --id=SNYK-DEBIAN-CURL-1585138"
                         }
                     } catch (Exception e) {
