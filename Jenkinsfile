@@ -100,14 +100,33 @@ pipeline {
                                 # Set Snyk token as environment variable
                                 export SNYK_TOKEN="$SNYK_TOKEN"
 
-                                echo "Scanning Auth Service: ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || echo "Auth scan completed with findings or errors"
+                                # 1) Try direct image scans
+                                echo "Scanning Auth Service (direct): ${AUTH_SERVICE_IMAGE}:${VERSION}"
+                                snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
 
-                                echo "Scanning Backend: ${BACKEND_IMAGE}:${VERSION}"
-                                snyk container test "${BACKEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || echo "Backend scan completed with findings or errors"
+                                echo "Scanning Backend (direct): ${BACKEND_IMAGE}:${VERSION}"
+                                snyk container test "${BACKEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
 
-                                echo "Scanning Frontend: ${FRONTEND_IMAGE}:${VERSION}"
-                                snyk container test "${FRONTEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || echo "Frontend scan completed with findings or errors"
+                                echo "Scanning Frontend (direct): ${FRONTEND_IMAGE}:${VERSION}"
+                                snyk container test "${FRONTEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+
+                                # 2) Fallback: scan docker-archive tars (Snyk requires docker-archive: prefix)
+                                echo "Preparing docker-archive tars for fallback scanning"
+                                docker save "${AUTH_SERVICE_IMAGE}:${VERSION}" -o auth-image.tar
+                                docker save "${BACKEND_IMAGE}:${VERSION}" -o backend-image.tar
+                                docker save "${FRONTEND_IMAGE}:${VERSION}" -o frontend-image.tar
+
+                                echo "Scanning Auth Service (docker-archive)"
+                                snyk container test docker-archive:auth-image.tar --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+
+                                echo "Scanning Backend (docker-archive)"
+                                snyk container test docker-archive:backend-image.tar --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+
+                                echo "Scanning Frontend (docker-archive)"
+                                snyk container test docker-archive:frontend-image.tar --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+
+                                # Cleanup tars
+                                rm -f auth-image.tar backend-image.tar frontend-image.tar || true
                             '''
                         }
 
