@@ -52,6 +52,27 @@ pipeline {
             }
         }
         
+        stage('Unit Tests') {
+            steps {
+                script {
+                    // Install test requirements and run pytest
+                    sh '''
+                        set -eu
+                        python3 -m pip install --user --upgrade pip
+                        python3 -m pip install --user pytest unittest2
+                        
+                        # Run tests and produce JUnit XML
+                        python3 -m pytest --junitxml results.xml tests/*.py || true
+                    '''
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'results.xml'
+                }
+            }
+        }
+        
         stage('Security Scan with Snyk') {
             steps {
                 script {
