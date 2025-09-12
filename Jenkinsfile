@@ -2,7 +2,6 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
         DOCKER_REGISTRY = "iDave621"
         AUTH_SERVICE_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-auth-service"
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
@@ -109,7 +108,6 @@ pipeline {
     post {
         always {
             node(null) {
-                sh 'docker logout'
                 cleanWs()
             }
         }
