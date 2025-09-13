@@ -279,18 +279,23 @@ pipeline {
         
         stage('Deploy App') {
             steps {
-                sh '''
-                    # Push images to registry
-                    docker push iDave621/luxe-jewelry-auth-service:${VERSION}
-                    docker push iDave621/luxe-jewelry-backend:${VERSION}
-                    docker push iDave621/luxe-jewelry-frontend:${VERSION}
-                    
-                    # Deploy using docker-compose
-                    docker-compose down || true
-                    docker-compose up -d
-                    
-                    echo "Deployment complete - All 3 services running"
-                '''
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        # Login to Docker Hub
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        
+                        # Push images to registry
+                        docker push iDave621/luxe-jewelry-auth-service:${VERSION}
+                        docker push iDave621/luxe-jewelry-backend:${VERSION}
+                        docker push iDave621/luxe-jewelry-frontend:${VERSION}
+                        
+                        # Deploy using docker-compose
+                        docker-compose down || true
+                        docker-compose up -d
+                        
+                        echo "Deployment complete - All 3 services running"
+                    '''
+                }
             }
         }
     }
