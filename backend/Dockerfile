@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy shared module first
 COPY shared ./shared
 # Copy the application code
-COPY backend/* .
+COPY backend/* ./
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1

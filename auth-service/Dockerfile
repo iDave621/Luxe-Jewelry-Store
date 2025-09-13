@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy shared module first
 COPY shared ./shared
 # Copy the application code
-COPY auth-service/* .
+COPY auth-service/* ./
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
