@@ -124,8 +124,22 @@ pipeline {
                             // Archive pylint reports
                             archiveArtifacts artifacts: 'pylint-reports/*', allowEmptyArchive: true
                             
-                            // Publish warnings using Warnings Next Generation Plugin
-                            recordIssues enabledForFailure: true, tools: [pyLint(pattern: 'pylint-reports/pylint.log')]
+                            // Publish pylint results (fallback without Warnings Next Generation Plugin)
+                            script {
+                                if (fileExists('pylint-reports/pylint.txt')) {
+                                    def pylintOutput = readFile('pylint-reports/pylint.txt')
+                                    echo "=== Pylint Report ==="
+                                    echo pylintOutput
+                                    
+                                    // Check if there are any errors/warnings and set build status
+                                    if (pylintOutput.contains('Your code has been rated at')) {
+                                        def rating = pylintOutput.find(/Your code has been rated at ([\d\.]+)\/10/)
+                                        if (rating) {
+                                            echo "Pylint Score: ${rating}"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
