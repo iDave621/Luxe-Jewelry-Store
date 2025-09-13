@@ -281,13 +281,20 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
+                        # Debug credentials
+                        echo "Docker username: $DOCKER_USER"
+                        echo "Password length: ${#DOCKER_PASS}"
+                        
                         # Login to Docker Hub
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         
+                        # Verify login worked
+                        docker info | grep Username || echo "Login verification failed"
+                        
                         # Push images to registry
-                        docker push iDave621/luxe-jewelry-auth-service:${VERSION}
-                        docker push iDave621/luxe-jewelry-backend:${VERSION}
-                        docker push iDave621/luxe-jewelry-frontend:${VERSION}
+                        docker push ${DOCKER_USER}/luxe-jewelry-auth-service:${VERSION}
+                        docker push ${DOCKER_USER}/luxe-jewelry-backend:${VERSION}
+                        docker push ${DOCKER_USER}/luxe-jewelry-frontend:${VERSION}
                         
                         # Deploy using docker-compose
                         docker-compose down || true
