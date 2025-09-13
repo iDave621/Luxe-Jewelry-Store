@@ -102,11 +102,11 @@ pipeline {
                         echo "Build number: ${env.BUILD_NUMBER}"
                         
                         for (credId in credentialIds) {
+                            if (workingCredId) break
                             try {
                                 withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
                                     echo "✓ Found working credential ID: ${credId}"
                                     workingCredId = credId
-                                    break
                                 }
                             } catch (Exception e) {
                                 echo "✗ Credential ID '${credId}' not found: ${e.message}"
