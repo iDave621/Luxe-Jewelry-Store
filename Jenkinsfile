@@ -275,33 +275,39 @@ pipeline {
         
         stage('Deploy App') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        # Debug credentials
-                        echo "Docker username: $DOCKER_USER"
-                        echo "Password length: ${#DOCKER_PASS}"
-                        echo "First 3 chars of password: $(echo "$DOCKER_PASS" | cut -c1-3)..."
-                        
-                        # Try manual login first to test credentials
-                        docker logout || true
-                        
-                        # Login to Docker Hub
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        
-                        # Verify login worked
-                        docker info | grep Username || echo "Login verification failed"
-                        
-                        # Push images to registry
-                        docker push ${DOCKER_USER}/luxe-jewelry-auth-service:${VERSION}
-                        docker push ${DOCKER_USER}/luxe-jewelry-backend:${VERSION}
-                        docker push ${DOCKER_USER}/luxe-jewelry-frontend:${VERSION}
-                        
-                        # Deploy using docker-compose
-                        docker-compose down || true
-                        docker-compose up -d
-                        
-                        echo "Deployment complete - All 3 services running"
-                    '''
+                timeout(time: 5, unit: 'MINUTES') {
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh '''
+                            # Debug credentials
+                            echo "Docker username: $DOCKER_USER"
+                            echo "Password length: ${#DOCKER_PASS}"
+                            echo "First 3 chars of password: $(echo "$DOCKER_PASS" | cut -c1-3)..."
+                            
+                            # Try manual login first to test credentials
+                            docker logout || true
+                            
+                            # Login to Docker Hub
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            
+                            # Verify login worked
+                            docker info | grep Username || echo "Login verification failed"
+                            
+                            # Push images to registry
+                            docker push ${DOCKER_USER}/luxe-jewelry-auth-service:${VERSION}
+                            docker push ${DOCKER_USER}/luxe-jewelry-backend:${VERSION}
+                            docker push ${DOCKER_USER}/luxe-jewelry-frontend:${VERSION}
+                            
+                            # Deploy using docker-compose
+                            docker-compose down || true
+                            docker-compose up -d
+                            
+                            # Give containers a moment to start and verify they're running
+                            sleep 10
+                            docker ps
+                            
+                            echo "Deployment complete - All 3 services running"
+                        '''
+                    }
                 }
             }
         }
