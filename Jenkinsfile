@@ -30,17 +30,13 @@ pipeline {
         
         stage('Build Auth Service') {
             steps {
-                dir('auth-service') {
-                    sh 'docker build -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
-                }
+                sh 'docker build -f auth-service/Dockerfile -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
             }
         }
         
         stage('Build Backend') {
             steps {
-                dir('backend') {
-                    sh 'docker build -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
-                }
+                sh 'docker build -f backend/Dockerfile -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
             }
         }
         
