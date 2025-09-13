@@ -1,24 +1,20 @@
 from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import uuid
 import jwt
 import httpx
 from datetime import datetime
 import os
+import sys
+sys.path.append('..')
+from shared.cors_config import add_cors_middleware
 
-app = FastAPI(title="Luxe Jewelry Store API", version="1.0.0")
+app = FastAPI(title="Luxe Jewelry Store Backend", version="1.0.0")
 
-# Enable CORS for React frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Add CORS middleware using shared configuration
+add_cors_middleware(app)
 
 # Auth service configuration
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
@@ -217,9 +213,9 @@ async def get_cart(
         # Return user's cart if authenticated
         user_id = current_user["id"]
         return user_carts_db.get(user_id, [])
-    else:
-        # Return session-based cart for anonymous users
-        return carts_db.get(session_id, [])
+    
+    # Return session-based cart for anonymous users
+    return carts_db.get(session_id, [])
 
 @app.delete("/api/cart/{session_id}/item/{item_id}")
 async def remove_from_cart(
@@ -278,9 +274,9 @@ async def update_cart_item(
         # Remove item if quantity is 0 or negative
         cart.remove(item)
         return {"message": "Item removed from cart"}
-    else:
-        item["quantity"] = quantity
-        return {"message": "Item quantity updated"}
+    
+    item["quantity"] = quantity
+    return {"message": "Item quantity updated"}
 
 @app.delete("/api/cart/{session_id}")
 async def clear_cart(

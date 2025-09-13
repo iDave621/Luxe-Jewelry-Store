@@ -1,24 +1,20 @@
 from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel
+from typing import Optional
 import jwt
 import bcrypt
 import uuid
 from datetime import datetime, timedelta
 import os
+import sys
+sys.path.append('..')
+from shared.cors_config import add_cors_middleware
 
-app = FastAPI(title="Luxe Jewelry Store - Auth Service", version="1.0.0")
+app = FastAPI(title="Luxe Jewelry Auth Service", version="1.0.0")
 
-# Enable CORS for React frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Add CORS middleware using shared configuration
+add_cors_middleware(app)
 
 # JWT Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
@@ -99,12 +95,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return user_id
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
 def get_current_user(user_id: str = Depends(verify_token)):
     """Get current user from token"""
@@ -285,6 +281,8 @@ async def change_password(
 @app.post("/auth/logout")
 async def logout_user(current_user: dict = Depends(get_current_user)):
     """Logout user (in a real app, you'd blacklist the token)"""
+    # Log the logout action for security auditing
+    print(f"User {current_user['id']} logged out at {datetime.utcnow()}")
     return {"message": "Logged out successfully"}
 
 @app.get("/auth/users", response_model=List[UserResponse])
