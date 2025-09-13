@@ -17,7 +17,7 @@ pipeline {
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
         VERSION = "1.0.${BUILD_NUMBER}"
-        DOCKER_HUB_CRED_ID = "dockerhub"
+        DOCKER_HUB_CRED_ID = "docker-hub"
     }
     
     stages {
@@ -147,7 +147,7 @@ pipeline {
                 script {
                     try {
                         // Try multiple common Docker Hub credential IDs
-                        def credentialIds = ['dockerhub', 'docker-hub', 'docker-hub-credentials', 'dockerhub-credentials', 'docker_hub', 'DOCKERHUB_CREDENTIALS']
+                        def credentialIds = ['docker-hub', 'dockerhub', 'docker-hub-credentials', 'dockerhub-credentials', 'docker_hub', 'DOCKERHUB_CREDENTIALS']
                         def workingCredId = null
                         
                         echo "=== Finding Docker Hub Credentials ==="
@@ -275,7 +275,7 @@ pipeline {
         
         stage('Deploy App') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         # Debug credentials
                         echo "Docker username: $DOCKER_USER"
