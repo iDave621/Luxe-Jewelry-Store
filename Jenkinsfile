@@ -17,7 +17,7 @@ pipeline {
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
         VERSION = "1.0.${BUILD_NUMBER}"
-        DOCKER_HUB_CRED_ID = "docker-hub"
+        DOCKER_HUB_CRED_ID = "dockerhub"
     }
     
     stages {
