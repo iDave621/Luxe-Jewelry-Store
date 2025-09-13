@@ -217,22 +217,24 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Using Jenkins credentials for secure Docker Hub login
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                            sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                            sh '''
-                                # Push auth-service images
-                                docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
-                                docker push ${AUTH_SERVICE_IMAGE}:latest
-                                
-                                # Push backend images
-                                docker push ${BACKEND_IMAGE}:${VERSION}
-                                docker push ${BACKEND_IMAGE}:latest
-                                
-                                # Push frontend images
-                                docker push ${FRONTEND_IMAGE}:${VERSION}
-                                docker push ${FRONTEND_IMAGE}:latest
-                            '''
+                        timeout(time: 5, unit: 'MINUTES') {
+                            // Using Jenkins credentials for secure Docker Hub login
+                            withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                                sh '''
+                                    # Push auth-service images
+                                    docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
+                                    docker push ${AUTH_SERVICE_IMAGE}:latest
+                                    
+                                    # Push backend images
+                                    docker push ${BACKEND_IMAGE}:${VERSION}
+                                    docker push ${BACKEND_IMAGE}:latest
+                                    
+                                    # Push frontend images
+                                    docker push ${FRONTEND_IMAGE}:${VERSION}
+                                    docker push ${FRONTEND_IMAGE}:latest
+                                '''
+                            }
                         }
                     } catch (Exception e) {
                         echo "Docker Hub push skipped: ${e.message}"
@@ -246,33 +248,35 @@ pipeline {
             steps {
                 script {
                     try {
-                        sh 'echo "Deploying to development environment"'
-                        // Here you would typically update your Docker Compose file 
-                        // or Kubernetes manifests with the new image tags
-                        
-                        // First check if docker-compose exists
-                        def dockerComposeExists = sh(script: 'command -v docker-compose', returnStatus: true) == 0
-                        def dockerComposePluginExists = false
-                        
-                        if (!dockerComposeExists) {
-                            // Check if docker CLI with compose plugin exists
-                            def dockerExists = sh(script: 'command -v docker', returnStatus: true) == 0
-                            if (dockerExists) {
-                                dockerComposePluginExists = sh(script: 'docker compose version', returnStatus: true) == 0
+                        timeout(time: 3, unit: 'MINUTES') {
+                            sh 'echo "Deploying to development environment"'
+                            // Here you would typically update your Docker Compose file 
+                            // or Kubernetes manifests with the new image tags
+                            
+                            // First check if docker-compose exists
+                            def dockerComposeExists = sh(script: 'command -v docker-compose', returnStatus: true) == 0
+                            def dockerComposePluginExists = false
+                            
+                            if (!dockerComposeExists) {
+                                // Check if docker CLI with compose plugin exists
+                                def dockerExists = sh(script: 'command -v docker', returnStatus: true) == 0
+                                if (dockerExists) {
+                                    dockerComposePluginExists = sh(script: 'docker compose version', returnStatus: true) == 0
+                                }
                             }
-                        }
-                        
-                        if (dockerComposeExists) {
-                            echo "Using docker-compose command"
-                            sh 'docker-compose down || true'
-                            sh 'docker-compose up -d'
-                        } else if (dockerComposePluginExists) {
-                            echo "Using docker compose plugin"
-                            sh 'docker compose down || true'
-                            sh 'docker compose up -d'
-                        } else {
-                            echo "WARNING: docker-compose command not found. Skipping deployment."
-                            echo "Please install docker-compose or Docker CLI with compose plugin."
+                            
+                            if (dockerComposeExists) {
+                                echo "Using docker-compose command"
+                                sh 'docker-compose down || true'
+                                sh 'docker-compose up -d'
+                            } else if (dockerComposePluginExists) {
+                                echo "Using docker compose plugin"
+                                sh 'docker compose down || true'
+                                sh 'docker compose up -d'
+                            } else {
+                                echo "WARNING: docker-compose command not found. Skipping deployment."
+                                echo "Please install docker-compose or Docker CLI with compose plugin."
+                            }
                         }
                     } catch (Exception e) {
                         echo "Deployment step failed: ${e.message}"
