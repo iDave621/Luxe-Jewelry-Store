@@ -98,15 +98,19 @@ pipeline {
                         def workingCredId = null
                         
                         echo "=== Finding Docker Hub Credentials ==="
+                        echo "Pipeline job: ${env.JOB_NAME}"
+                        echo "Build number: ${env.BUILD_NUMBER}"
+                        
                         for (credId in credentialIds) {
                             try {
                                 withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
                                     echo "✓ Found working credential ID: ${credId}"
+                                    echo "✓ Username: ${env.TEST_USER}"
                                     workingCredId = credId
                                     break
                                 }
                             } catch (Exception e) {
-                                echo "✗ Credential ID '${credId}' not found"
+                                echo "✗ Credential ID '${credId}' not found: ${e.message}"
                             }
                         }
                         
