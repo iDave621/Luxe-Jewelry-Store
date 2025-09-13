@@ -12,7 +12,7 @@ pipeline {
     }
     
     environment {
-        DOCKER_REGISTRY = "iDave621"
+        DOCKER_REGISTRY = "vixx3"
         AUTH_SERVICE_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-auth-service"
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
