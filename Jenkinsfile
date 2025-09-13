@@ -93,86 +93,59 @@ pipeline {
             steps {
                 script {
                     try {
-                        // 1) Try anonymous pull first (works for public repos)
-                        sh '''
-                            set -eu
-                            for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
-                              if ! docker image inspect "$IMG" > /dev/null 2>&1; then
-                                echo "Attempting anonymous pull for $IMG (linux/amd64)"
-                                docker pull --platform=linux/amd64 "$IMG" || true
-                              fi
-                            done
-                        '''
-
-                        // 2) If any image still missing, try authenticated pull using configured credentials
-                        def needAuthPull = sh(
-                            script: 'for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do docker image inspect "$IMG" > /dev/null 2>&1 || exit 1; done; exit 0',
-                            returnStatus: true
-                        )
-
-                        if (needAuthPull != 0) {
-                            echo "Attempting authenticated pull using credentials ID: ${env.DOCKER_HUB_CRED_ID}"
-                            withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                                sh '''
-                                    set -eu
-                                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                                    for IMG in "${AUTH_SERVICE_IMAGE}:${VERSION}" "${BACKEND_IMAGE}:${VERSION}" "${FRONTEND_IMAGE}:${VERSION}"; do
-                                      if ! docker image inspect "$IMG" > /dev/null 2>&1; then
-                                        echo "Authenticated pull for $IMG (linux/amd64)"
-                                        docker pull --platform=linux/amd64 "$IMG" || true
-                                      fi
-                                    done
-                                '''
-                            }
-                        } else {
-                            echo 'All images present locally after anonymous pull; skipping authenticated pull'
-                        }
-
-                        // 3) Snyk auth and scans (prefer authenticated remote; fallback to unauthenticated if creds missing)
-                        withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
+                        // Try multiple common Docker Hub credential IDs
+                        def credentialIds = ['dockerhub', 'docker-hub', 'docker-hub-credentials', 'dockerhub-credentials', 'docker_hub', 'DOCKERHUB_CREDENTIALS']
+                        def workingCredId = null
+                        
+                        echo "=== Finding Docker Hub Credentials ==="
+                        for (credId in credentialIds) {
                             try {
-                                withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                                    sh '''
-                                        set -eu
-                                        mkdir -p snyk-results
-                                        
-                                        # Provide auth for Snyk and Docker Hub
-                                        export SNYK_TOKEN="$SNYK_TOKEN"
-                                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin || true
-
-                                        # Authenticated registry-based scanning
-                                        echo "Scanning Auth Service (remote, auth): ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                        snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
-
-                                        echo "Scanning Backend (remote, auth): ${BACKEND_IMAGE}:${VERSION}"
-                                        snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
-
-                                        echo "Scanning Frontend (remote, auth): ${FRONTEND_IMAGE}:${VERSION}"
-                                        snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
-                                    '''
+                                withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
+                                    echo "✓ Found working credential ID: ${credId}"
+                                    workingCredId = credId
+                                    break
                                 }
-                            } catch (Exception credErr) {
-                                echo "Docker Hub credential '${env.DOCKER_HUB_CRED_ID}' not found or inaccessible; running unauthenticated remote scans (public repos only)"
+                            } catch (Exception e) {
+                                echo "✗ Credential ID '${credId}' not found"
+                            }
+                        }
+                        
+                        if (workingCredId) {
+                            echo "Using Docker Hub credential ID: ${workingCredId}"
+                            withCredentials([
+                                string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN'),
+                                usernamePassword(credentialsId: workingCredId, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')
+                            ]) {
                                 sh '''
                                     set -eu
                                     mkdir -p snyk-results
                                     
-                                    # Snyk auth via env only
+                                    # Set Snyk token and login to Docker Hub
                                     export SNYK_TOKEN="$SNYK_TOKEN"
-
-                                    echo "Scanning Auth Service (remote): ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                    snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
-
-                                    echo "Scanning Backend (remote): ${BACKEND_IMAGE}:${VERSION}"
-                                    snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
-
-                                    echo "Scanning Frontend (remote): ${FRONTEND_IMAGE}:${VERSION}"
-                                    snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+                                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                                    
+                                    # Authenticated registry-based scanning
+                                    echo "Scanning Auth Service (remote, authenticated): ${AUTH_SERVICE_IMAGE}:${VERSION}"
+                                    snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+                                    
+                                    echo "Scanning Backend (remote, authenticated): ${BACKEND_IMAGE}:${VERSION}"
+                                    snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+                                    
+                                    echo "Scanning Frontend (remote, authenticated): ${FRONTEND_IMAGE}:${VERSION}"
+                                    snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                                 '''
                             }
+                        } else {
+                            echo "❌ No Docker Hub credentials found with common IDs"
+                            echo "Please create a Docker Hub credential in Jenkins with one of these IDs:"
+                            echo "  - dockerhub (recommended)"
+                            echo "  - docker-hub-credentials" 
+                            echo "  - dockerhub-credentials"
+                            echo "Credential type: Username with password"
+                            echo "Skipping Snyk scans for this build."
                         }
-
-                        // Archive scan results (if produced)
+                        
+                        // Archive scan results (if any were produced)
                         archiveArtifacts artifacts: 'snyk-results/*.json', allowEmptyArchive: true
 
                     } catch (Exception e) {
