@@ -1,13 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from typing import Optional
-import jwt
-import bcrypt
-import uuid
-from datetime import datetime, timedelta
 import os
 import sys
+import uuid
+from datetime import datetime, timedelta
+from typing import Optional, List
+
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, EmailStr
+import jwt
+import bcrypt
+
 sys.path.append('..')
 from shared.cors_config import add_cors_middleware
 
@@ -128,11 +130,11 @@ async def register_user(user_data: UserCreate):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-    
+
     # Create new user
     user_id = str(uuid.uuid4())
     hashed_password = hash_password(user_data.password)
-    
+
     new_user = {
         "id": user_id,
         "email": user_data.email,
@@ -143,15 +145,15 @@ async def register_user(user_data: UserCreate):
         "created_at": datetime.utcnow(),
         "is_active": True
     }
-    
+
     users_db[user_id] = new_user
-    
+
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user_id}, expires_delta=access_token_expires
     )
-    
+
     # Prepare user response (without password)
     user_response = UserResponse(
         id=new_user["id"],
@@ -162,7 +164,7 @@ async def register_user(user_data: UserCreate):
         created_at=new_user["created_at"],
         is_active=new_user["is_active"]
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -179,25 +181,25 @@ async def login_user(login_data: UserLogin):
         if u["email"] == login_data.email:
             user = u
             break
-    
+
     if not user or not verify_password(login_data.password, user["password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
-    
+
     if not user["is_active"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
-    
+
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["id"]}, expires_delta=access_token_expires
     )
-    
+
     # Prepare user response (without password)
     user_response = UserResponse(
         id=user["id"],
@@ -208,7 +210,7 @@ async def login_user(login_data: UserLogin):
         created_at=user["created_at"],
         is_active=user["is_active"]
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -236,7 +238,7 @@ async def update_user_profile(
 ):
     """Update current user profile"""
     user_id = current_user["id"]
-    
+
     # Update user data
     if user_update.first_name is not None:
         users_db[user_id]["first_name"] = user_update.first_name
@@ -244,9 +246,9 @@ async def update_user_profile(
         users_db[user_id]["last_name"] = user_update.last_name
     if user_update.phone is not None:
         users_db[user_id]["phone"] = user_update.phone
-    
+
     updated_user = users_db[user_id]
-    
+
     return UserResponse(
         id=updated_user["id"],
         email=updated_user["email"],
@@ -264,18 +266,18 @@ async def change_password(
 ):
     """Change user password"""
     user_id = current_user["id"]
-    
+
     # Verify current password
     if not verify_password(password_data.current_password, current_user["password"]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect current password"
         )
-    
+
     # Update password
     new_hashed_password = hash_password(password_data.new_password)
     users_db[user_id]["password"] = new_hashed_password
-    
+
     return {"message": "Password changed successfully"}
 
 @app.post("/auth/logout")
