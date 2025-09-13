@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
 COPY . .
+# Copy shared module from parent directory
+COPY ../shared ./shared
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
