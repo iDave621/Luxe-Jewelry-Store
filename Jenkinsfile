@@ -284,6 +284,10 @@ pipeline {
                         # Debug credentials
                         echo "Docker username: $DOCKER_USER"
                         echo "Password length: ${#DOCKER_PASS}"
+                        echo "First 3 chars of password: ${DOCKER_PASS:0:3}..."
+                        
+                        # Try manual login first to test credentials
+                        docker logout || true
                         
                         # Login to Docker Hub
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
