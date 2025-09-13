@@ -105,7 +105,6 @@ pipeline {
                             try {
                                 withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
                                     echo "✓ Found working credential ID: ${credId}"
-                                    echo "✓ Username: ${env.TEST_USER}"
                                     workingCredId = credId
                                     break
                                 }
