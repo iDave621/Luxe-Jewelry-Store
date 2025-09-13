@@ -52,39 +52,82 @@ pipeline {
             }
         }
         
-        stage('Unit Tests') {
-            steps {
-                script {
-                    // Robust installation: try venv; if unavailable, fallback to pip with --break-system-packages
-                    sh '''
-                        set -eu
-                        USE_VENV=0
-                        if python3 -m venv .venv 2>/dev/null; then
-                          USE_VENV=1
-                        fi
+        stage('Quality Checks') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        script {
+                            sh '''
+                                # Determine Python command
+                                if command -v python3 &> /dev/null; then
+                                  python3 -m pip install --upgrade pip --break-system-packages || true
+                                  python3 -m pip install -r requirements-dev.txt --break-system-packages
+                                  TEST_PY="python3"
+                                fi
 
-                        if [ "$USE_VENV" = "1" ] && [ -x .venv/bin/python ]; then
-                          echo "Using virtual environment for tests"
-                          . .venv/bin/activate
-                          python -m pip install --upgrade pip
-                          python -m pip install -r requirements-dev.txt
-                          TEST_PY="python"
-                        else
-                          echo "venv unavailable; falling back to system Python with --break-system-packages"
-                          # Attempt install with break-system-packages (PEP 668 override)
-                          python3 -m pip install --upgrade pip --break-system-packages || true
-                          python3 -m pip install -r requirements-dev.txt --break-system-packages
-                          TEST_PY="python3"
-                        fi
-
-                        # Run tests and produce JUnit XML
-                        $TEST_PY -m pytest --junitxml results.xml tests/*.py || true
-                    '''
+                                # Run tests and produce JUnit XML
+                                $TEST_PY -m pytest --junitxml results.xml tests/*.py || true
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            junit allowEmptyResults: true, testResults: 'results.xml'
+                        }
+                    }
                 }
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: 'results.xml'
+                
+                stage('Static Code Linting') {
+                    steps {
+                        script {
+                            sh '''
+                                # Determine Python command
+                                if command -v python3 &> /dev/null; then
+                                  python3 -m pip install --upgrade pip --break-system-packages || true
+                                  python3 -m pip install -r requirements-dev.txt --break-system-packages
+                                  LINT_PY="python3"
+                                fi
+
+                                # Create pylint reports directory
+                                mkdir -p pylint-reports
+
+                                # Run pylint on Python files and generate reports
+                                echo "Running Pylint static code analysis..."
+                                find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | head -20 > python_files.txt
+                                
+                                if [ -s python_files.txt ]; then
+                                    # Run pylint with parseable output for Jenkins
+                                    $LINT_PY -m pylint --output-format=parseable --reports=y $(cat python_files.txt) > pylint-reports/pylint.log 2>&1 || true
+                                    
+                                    # Also generate JSON format for detailed analysis
+                                    $LINT_PY -m pylint --output-format=json $(cat python_files.txt) > pylint-reports/pylint.json 2>&1 || true
+                                    
+                                    # Generate text report for human reading
+                                    $LINT_PY -m pylint $(cat python_files.txt) > pylint-reports/pylint.txt 2>&1 || true
+                                    
+                                    echo "Pylint analysis completed. Check pylint-reports/ for detailed results."
+                                    
+                                    # Show summary
+                                    if [ -f pylint-reports/pylint.txt ]; then
+                                        echo "=== Pylint Summary ==="
+                                        tail -20 pylint-reports/pylint.txt
+                                    fi
+                                else
+                                    echo "No Python files found to lint."
+                                    echo "Pylint: No issues found" > pylint-reports/pylint.log
+                                fi
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            // Archive pylint reports
+                            archiveArtifacts artifacts: 'pylint-reports/*', allowEmptyArchive: true
+                            
+                            // Publish warnings using Warnings Next Generation Plugin
+                            recordIssues enabledForFailure: true, tools: [pyLint(pattern: 'pylint-reports/pylint.log')]
+                        }
+                    }
                 }
             }
         }
