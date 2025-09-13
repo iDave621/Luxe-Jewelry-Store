@@ -8,16 +8,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY auth-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy shared module first
+COPY shared ./shared
 # Copy the application code
-COPY . .
-# Copy shared module from parent directory
-COPY ../shared ./shared
+COPY auth-service/* .
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 ENV JWT_SECRET_KEY=your-secret-key-change-in-production
 ENV PORT=8001
 
