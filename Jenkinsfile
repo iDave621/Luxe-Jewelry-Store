@@ -315,18 +315,16 @@ pipeline {
     
     post {
         always {
-            node('docker-agent') {
-                // Clean up Docker images
-                script {
-                    try {
-                        sh 'docker image prune -f || true'
-                    } catch (Exception e) {
-                        echo "Error cleaning up Docker images: ${e.message}"
-                    }
+            // Clean up Docker images
+            script {
+                try {
+                    sh 'docker image prune -f || true'
+                } catch (Exception e) {
+                    echo "Error cleaning up Docker images: ${e.message}"
                 }
-                // Workspace cleanup
-                cleanWs()
             }
+            // Workspace cleanup
+            cleanWs()
         }
         success {
             echo 'Pipeline completed successfully!'
