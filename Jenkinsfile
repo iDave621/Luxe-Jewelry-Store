@@ -22,6 +22,7 @@ pipeline {
         
         // Nexus Docker registry
         // Use host machine IP address with explicit HTTP protocol
+        // Updated with anonymous pull enabled
         NEXUS_REGISTRY = "http://192.168.1.117:8082"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
