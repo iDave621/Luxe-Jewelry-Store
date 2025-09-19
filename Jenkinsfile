@@ -328,7 +328,14 @@ pipeline {
                                 sh '''
                                     # Create temporary docker config directory for insecure registry setting
                                     mkdir -p /tmp/.docker
-                                    echo "{\"insecure-registries\":[\"${NEXUS_REGISTRY}\"]}"> /tmp/.docker/config.json
+                                    # Use jq to create valid JSON (install if needed)
+                                    apt-get update -y > /dev/null && apt-get install -y jq > /dev/null || true
+                                    
+                                    # Create properly formatted JSON config file
+                                    echo '{"insecure-registries": ["'"${NEXUS_REGISTRY}"'"]}' | jq . > /tmp/.docker/config.json
+                                    
+                                    # Verify the content
+                                    cat /tmp/.docker/config.json
                                     
                                     # Use Docker registry API with port 8082
                                     echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
