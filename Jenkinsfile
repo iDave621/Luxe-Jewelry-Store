@@ -329,11 +329,15 @@ pipeline {
                                 sh '''
                                     # Create temporary docker config directory for insecure registry setting
                                     mkdir -p /tmp/.docker
-                                    # Use jq to create valid JSON (install if needed)
-                                    apt-get update -y > /dev/null && apt-get install -y jq > /dev/null || true
                                     
-                                    # Create properly formatted JSON config file
-                                    echo '{"insecure-registries": ["'"${NEXUS_REGISTRY}"'"]}' | jq . > /tmp/.docker/config.json
+                                    # Create properly formatted JSON config file using pure shell
+                                    cat > /tmp/.docker/config.json << 'EOL'
+{
+  "insecure-registries": [
+    "192.168.1.117"
+  ]
+}
+EOL
                                     
                                     # Verify the content
                                     cat /tmp/.docker/config.json
