@@ -21,9 +21,9 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry
-        // Use host machine IP address without protocol
-        // Registry configured as insecure in Docker daemon.json
-        NEXUS_REGISTRY = "192.168.1.117:8082"
+        // Use full repository path instead of just hostname:port
+        // This format matches what's shown in Nexus UI
+        NEXUS_REGISTRY = "192.168.1.117:8081/repository/docker-hosted"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
