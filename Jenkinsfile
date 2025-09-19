@@ -12,12 +12,17 @@ pipeline {
     }
     
     environment {
+        // Docker Hub registry
         DOCKER_REGISTRY = "vixx3"
         AUTH_SERVICE_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-auth-service"
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/luxe-jewelry-frontend"
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
+        
+        // Nexus registry
+        NEXUS_REGISTRY = "localhost:8082"
+        NEXUS_CRED_ID = "nexus-docker"
     }
     
     stages {
@@ -307,6 +312,40 @@ pipeline {
                             
                             echo "Deployment complete - All 3 services running"
                         '''
+                    }
+                }
+            }
+        }
+        
+        stage('Push to Nexus Registry') {
+            steps {
+                script {
+                    try {
+                        timeout(time: 5, unit: 'MINUTES') {
+                            withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                                sh '''
+                                    # Login to Nexus Docker registry
+                                    echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin
+                                    
+                                    echo "Pushing to Nexus registry: ${NEXUS_REGISTRY}"
+                                    
+                                    # Tag images for Nexus
+                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
+                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                    
+                                    # Push images to Nexus
+                                    docker push ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                    docker push ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
+                                    docker push ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                    
+                                    echo "Successfully pushed images to Nexus repository"
+                                '''
+                            }
+                        }
+                    } catch (Exception e) {
+                        echo "Nexus push failed: ${e.message}"
+                        echo "Continue pipeline execution without failing the build"
                     }
                 }
             }
