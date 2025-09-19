@@ -22,7 +22,7 @@ pipeline {
         
         // Nexus registry
         NEXUS_REGISTRY = "localhost:8082"
-        NEXUS_CRED_ID = "nexus-docker"
+        NEXUS_CRED_ID = "Nexus-Docker"
     }
     
     stages {
