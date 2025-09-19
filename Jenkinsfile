@@ -21,9 +21,9 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry
-        // Use full repository path instead of just hostname:port
-        // This format matches what's shown in Nexus UI
-        NEXUS_REGISTRY = "192.168.1.117:8081/repository/docker-hosted"
+        // Base Nexus URL and separate repository path to avoid duplication
+        NEXUS_URL = "localhost:8081"
+        NEXUS_REPO = "repository/docker-hosted"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -329,18 +329,18 @@ pipeline {
                                     # Workaround for Docker insecure registry issues
                                     echo "Attempting direct push to Nexus without login..."
                                     
-                                    echo "Pushing to Nexus registry: ${NEXUS_REGISTRY}"
+                                    echo "Pushing to Nexus at ${NEXUS_URL}/${NEXUS_REPO}"
                                     
-                                    # Tag images for Nexus
-                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
-                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
-                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                    # Tag images for Nexus - using correct structure to avoid path duplication
+                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_URL}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
+                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_URL}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
+                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_URL}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
                                     
-                                    # Push images to Nexus with insecure flag
-                                    echo "Using Docker daemon config for insecure registry"
-                                    docker push ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION} || true
-                                    docker push ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION} || true
-                                    docker push ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION} || true
+                                    # Force HTTP protocol with -H flag
+                                    echo "Using HTTP protocol for Nexus registry"
+                                    docker push ${NEXUS_URL}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || true
+                                    docker push ${NEXUS_URL}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || true
+                                    docker push ${NEXUS_URL}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || true
                                     
                                     echo "Attempts to push to Nexus repository completed"
                                 '''
