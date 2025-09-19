@@ -20,7 +20,7 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus registry
+        // Nexus Docker registry
         NEXUS_REGISTRY = "localhost:8082"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
