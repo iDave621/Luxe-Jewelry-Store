@@ -21,8 +21,8 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry
-        // Use localhost with port 8082 for Docker registry
-        NEXUS_REGISTRY = "localhost:8082"
+        // Use container name now that both containers are on the same network
+        NEXUS_REGISTRY = "nexus:8082"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
