@@ -21,8 +21,8 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry
-        // Use container name instead of localhost since Jenkins agent is in its own container
-        NEXUS_REGISTRY = "nexus:8082"
+        // Use Nexus container IP address since containers are on different networks
+        NEXUS_REGISTRY = "172.17.0.2:8082"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
