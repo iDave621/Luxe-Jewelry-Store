@@ -21,8 +21,8 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry
-        // Use container name now that both containers are on the same network
-        NEXUS_REGISTRY = "nexus:8082"
+        // Use host machine IP address (visible to all containers)
+        NEXUS_REGISTRY = "192.168.1.117:8082"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
