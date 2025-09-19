@@ -326,7 +326,12 @@ pipeline {
                         timeout(time: 5, unit: 'MINUTES') {
                             withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                 sh '''
-                                    # Use direct Docker API port access (8082)
+                                    # Create temporary Docker config with insecure registry setting
+                                    mkdir -p ~/.docker
+                                    echo "{\"insecure-registries\":[\"${NEXUS_REGISTRY}\"]}" > ~/.docker/config.json
+                                    cat ~/.docker/config.json
+                                    
+                                    # Login to Nexus Docker registry
                                     echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
                                     echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin
                                     
