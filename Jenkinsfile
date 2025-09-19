@@ -176,7 +176,7 @@ pipeline {
                         if (workingCredId) {
                             echo "Using Docker Hub credential ID: ${workingCredId}"
                             withCredentials([
-                                string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN'),
+                                string(credentialsId: 'snky', variable: 'SNYK_TOKEN'),
                                 usernamePassword(credentialsId: workingCredId, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')
                             ]) {
                                 sh '''
