@@ -36,22 +36,26 @@ pipeline {
             }
         }
         
-        stage('Build Auth Service') {
-            steps {
-                sh 'docker build -f auth-service/Dockerfile -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
-            }
-        }
-        
-        stage('Build Backend') {
-            steps {
-                sh 'docker build -f backend/Dockerfile -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
-            }
-        }
-        
-        stage('Build Frontend') {
-            steps {
-                dir('jewelry-store') {
-                    sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
+        stage('Build Services') {
+            parallel {
+                stage('Build Auth Service') {
+                    steps {
+                        sh 'docker build -f auth-service/Dockerfile -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
+                    }
+                }
+                
+                stage('Build Backend') {
+                    steps {
+                        sh 'docker build -f backend/Dockerfile -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
+                    }
+                }
+                
+                stage('Build Frontend') {
+                    steps {
+                        dir('jewelry-store') {
+                            sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
+                        }
+                    }
                 }
             }
         }
@@ -220,32 +224,36 @@ pipeline {
             }
         }
         
-        stage('Test Auth Service') {
-            steps {
-                dir('auth-service') {
-                    sh 'echo "Running auth service tests"'
-                    // Add actual test commands here
-                    // e.g., sh 'python -m pytest'
+        stage('Test Services') {
+            parallel {
+                stage('Test Auth Service') {
+                    steps {
+                        dir('auth-service') {
+                            sh 'echo "Running auth service tests"'
+                            // Add actual test commands here
+                            // e.g., sh 'python -m pytest'
+                        }
+                    }
                 }
-            }
-        }
-        
-        stage('Test Backend') {
-            steps {
-                dir('backend') {
-                    sh 'echo "Running backend tests"'
-                    // Add actual test commands here
-                    // e.g., sh 'python -m pytest'
+                
+                stage('Test Backend') {
+                    steps {
+                        dir('backend') {
+                            sh 'echo "Running backend tests"'
+                            // Add actual test commands here
+                            // e.g., sh 'python -m pytest'
+                        }
+                    }
                 }
-            }
-        }
-        
-        stage('Test Frontend') {
-            steps {
-                dir('jewelry-store') {
-                    sh 'echo "Running frontend tests"'
-                    // Add actual test commands here
-                    // e.g., sh 'npm test'
+                
+                stage('Test Frontend') {
+                    steps {
+                        dir('jewelry-store') {
+                            sh 'echo "Running frontend tests"'
+                            // Add actual test commands here
+                            // e.g., sh 'npm test'
+                        }
+                    }
                 }
             }
         }
