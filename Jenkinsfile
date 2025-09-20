@@ -20,11 +20,11 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus Docker registry via Docker connector port
-        // Using the dedicated Docker API port 8082
-        NEXUS_REGISTRY = "192.168.1.117:8082"
-        // No repository prefix needed with dedicated Docker connector
-        NEXUS_REPO = ""
+        // Nexus Docker registry with path-based routing
+        // Using standard Nexus port 8081 as shown in repository configuration
+        NEXUS_REGISTRY = "192.168.1.117:8081"
+        // Repository path as shown in Nexus configuration
+        NEXUS_REPO = "repository/docker-hosted"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -345,21 +345,22 @@ EOL
                                     # Verify config was created correctly
                                     cat /tmp/.docker/config.json
                                     
-                                    # Login to Nexus Docker registry with port 8082
+                                    # Login to Nexus Docker registry with port 8082 and explicitly disable TLS
                                     echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
-                                    echo $NEXUS_PASSWORD | docker --config /tmp/.docker login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin || true
+                                    export DOCKER_TLS_VERIFY=0
+                                    echo $NEXUS_PASSWORD | docker --config /tmp/.docker --tls=false login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin || true
                                     
-                                    # Tag images for Nexus using port 8082
-                                    echo "Tagging images for Nexus at ${NEXUS_REGISTRY}"
-                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
-                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
-                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                    # Tag images for Nexus using port 8082 and repository name
+                                    echo "Tagging images for Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
+                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
+                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
+                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
                                     
-                                    # Push images to Nexus registry
-                                    echo "Pushing images to Nexus at ${NEXUS_REGISTRY}"
-                                    docker --config /tmp/.docker push ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
-                                    docker --config /tmp/.docker push ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
-                                    docker --config /tmp/.docker push ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
+                                    # Push images to Nexus registry with TLS disabled
+                                    echo "Pushing images to Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
+                                    docker --config /tmp/.docker --tls=false push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
+                                    docker --config /tmp/.docker --tls=false push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
+                                    docker --config /tmp/.docker --tls=false push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
                                     
                                     echo "Attempts to push to Nexus repository completed"
                                 '''
