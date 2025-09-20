@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_0.dtd">
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+  <New id="httpsConfig" class="org.eclipse.jetty.server.HttpConfiguration">
+    <Set name="secureScheme">https</Set>
+    <Set name="securePort">8443</Set>
+    <Set name="outputBufferSize">32768</Set>
+    <Set name="requestHeaderSize">8192</Set>
+    <Set name="responseHeaderSize">8192</Set>
+    <Set name="sendServerVersion">true</Set>
+    <Set name="sendDateHeader">false</Set>
+    <Call name="addCustomizer">
+      <Arg>
+        <New class="org.eclipse.jetty.server.SecureRequestCustomizer"/>
+      </Arg>
+    </Call>
+  </New>
+
+  <New id="sslContextFactory" class="org.eclipse.jetty.util.ssl.SslContextFactory">
+    <Set name="KeyStorePath">/opt/nexus/etc/ssl/keystore.jks</Set>
+    <Set name="KeyStorePassword">nexus123</Set>
+    <Set name="KeyManagerPassword">nexus123</Set>
+    <Set name="TrustStorePath">/opt/nexus/etc/ssl/truststore.jks</Set>
+    <Set name="TrustStorePassword">nexus123</Set>
+  </New>
+
+  <Call name="addConnector">
+    <Arg>
+      <New class="org.eclipse.jetty.server.ServerConnector">
+        <Arg name="server">
+          <Ref refid="Server" />
+        </Arg>
+        <Arg name="acceptors">-1</Arg>
+        <Arg name="selectors">-1</Arg>
+        <Arg name="factories">
+          <Array type="org.eclipse.jetty.server.ConnectionFactory">
+            <Item>
+              <New class="org.eclipse.jetty.server.SslConnectionFactory">
+                <Arg name="next">http/1.1</Arg>
+                <Arg name="sslContextFactory">
+                  <Ref refid="sslContextFactory" />
+                </Arg>
+              </New>
+            </Item>
+            <Item>
+              <New class="org.eclipse.jetty.server.HttpConnectionFactory">
+                <Arg name="config">
+                  <Ref refid="httpsConfig" />
+                </Arg>
+              </New>
+            </Item>
+          </Array>
+        </Arg>
+        <Set name="host">0.0.0.0</Set>
+        <Set name="port">8443</Set>
+        <Set name="idleTimeout">60000</Set>
+        <Set name="acceptorPriorityDelta">0</Set>
+        <Set name="acceptQueueSize">1024</Set>
+      </New>
+    </Arg>
+  </Call>
+</Configure>

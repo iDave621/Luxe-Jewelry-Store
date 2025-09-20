@@ -21,11 +21,13 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry information
-        // Use Nexus API port for general Nexus operations
-        NEXUS_API = "192.168.1.117:8081"
-        // Use Docker-specific port for Docker registry operations
-        // This MUST be configured in Nexus Docker repository settings (HTTP section)
+        // Use Nexus API port with HTTPS for general Nexus operations
+        NEXUS_API = "192.168.1.117:8443"
+        // Use Docker-specific port for Docker registry operations with HTTPS
+        // This MUST be configured in Nexus Docker repository settings (HTTPS section)
         NEXUS_DOCKER_REGISTRY = "192.168.1.117:8082"
+        // Use HTTPS for Docker registry operations as Docker insists on HTTPS
+        NEXUS_USE_HTTPS = true
         // Simplified path without nested structure
         NEXUS_REPO = "docker-hosted"
         NEXUS_CRED_ID = "Nexus-Docker"
@@ -342,65 +344,60 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Use curl-based approach to directly upload to Nexus via HTTP
+                                        // Use Docker commands with HTTPS for Nexus Docker registry
                                         sh '''
-                                            echo "==== ARCHIVING DOCKER IMAGES FOR NEXUS REGISTRY ===="
+                                            echo "==== PUSHING DOCKER IMAGES TO NEXUS REGISTRY USING HTTPS ===="
                                             
-                                            # Since Docker client insists on using HTTPS despite our configuration,
-                                            # we'll use a different approach - archiving the images for later download
+                                            # Check for Docker certificates directory for our registry
+                                            echo "\nVerifying Docker certificates setup..."
+                                            if [ ! -d "/etc/docker/certs.d/${NEXUS_DOCKER_REGISTRY}" ]; then
+                                                echo "Warning: No certificates directory found for ${NEXUS_DOCKER_REGISTRY}"
+                                                echo "Docker may not trust the Nexus certificate"
+                                                echo "Creating directory for certificate..."
+                                                mkdir -p /etc/docker/certs.d/${NEXUS_DOCKER_REGISTRY}
+                                            else
+                                                echo "Certificate directory exists for ${NEXUS_DOCKER_REGISTRY}"
+                                            fi
                                             
-                                            # 1. Create a directory to store Docker image tars
-                                            mkdir -p /tmp/nexus-images
+                                            # 1. Create Docker configuration with registry auth
+                                            echo "\nConfiguring Docker authentication..."
+                                            mkdir -p ~/.docker
+                                            echo '{"auths":{"'${NEXUS_DOCKER_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}}}' > ~/.docker/config.json
                                             
-                                            # 2. Export Docker images to files
-                                            echo "\nExporting Docker images to tar files..."
+                                            # 2. Tag the images with our HTTPS registry
+                                            echo "\nTagging Docker images for HTTPS Nexus registry..."
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
                                             
-                                            docker save -o /tmp/nexus-images/auth-service-${VERSION}.tar ${AUTH_SERVICE_IMAGE}:${VERSION}
-                                            docker save -o /tmp/nexus-images/backend-${VERSION}.tar ${BACKEND_IMAGE}:${VERSION}
-                                            docker save -o /tmp/nexus-images/frontend-${VERSION}.tar ${FRONTEND_IMAGE}:${VERSION}
+                                            # 3. Log in to the Nexus registry
+                                            echo "\nLogging in to Nexus Docker registry..."
+                                            echo ${NEXUS_PASSWORD} | docker login -u ${NEXUS_USERNAME} --password-stdin ${NEXUS_DOCKER_REGISTRY}
                                             
-                                            # 3. Make the images available for download
-                                            echo "\nCreating image manifests..."
+                                            # 4. Push images to Nexus registry
+                                            echo "\nPushing auth-service to Nexus (with retry logic)..."
+                                            for i in 1 2 3; do
+                                                docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION} && break || echo "Attempt $i failed, retrying..."
+                                                sleep 3
+                                            done
                                             
-                                            # Create manifest files for each image
-                                            echo "Auth Service Image: ${AUTH_SERVICE_IMAGE}:${VERSION}" > /tmp/nexus-images/auth-service-${VERSION}.manifest
-                                            echo "Backend Image: ${BACKEND_IMAGE}:${VERSION}" > /tmp/nexus-images/backend-${VERSION}.manifest
-                                            echo "Frontend Image: ${FRONTEND_IMAGE}:${VERSION}" > /tmp/nexus-images/frontend-${VERSION}.manifest
+                                            echo "\nPushing backend to Nexus (with retry logic)..."
+                                            for i in 1 2 3; do
+                                                docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION} && break || echo "Attempt $i failed, retrying..."
+                                                sleep 3
+                                            done
                                             
-                                            # 4. Verify Nexus settings directly
-                                            echo "\nVerifying Nexus configuration..."
+                                            echo "\nPushing frontend to Nexus (with retry logic)..."
+                                            for i in 1 2 3; do
+                                                docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} && break || echo "Attempt $i failed, retrying..."
+                                                sleep 3
+                                            done
                                             
-                                            echo "Checking Docker repository settings..."
-                                            curl -s -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET http://${NEXUS_API}/service/rest/v1/repositories/docker-hosted > /tmp/nexus-images/repo-settings.json
-                                            cat /tmp/nexus-images/repo-settings.json
+                                            # 5. Verify the push was successful
+                                            echo "\nVerifying Nexus repository contents..."
+                                            curl -k -s -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET https://${NEXUS_DOCKER_REGISTRY}/v2/_catalog
                                             
-                                            echo "\nVerifying Docker repository HTTP port config..."
-                                            grep -q "httpPort" /tmp/nexus-images/repo-settings.json && echo "HTTP port is configured" || echo "HTTP port is NOT configured - this is the root issue"
-                                            
-                                            echo "\nVerifying direct Docker catalog API access..."
-                                            curl -s -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET http://${NEXUS_DOCKER_REGISTRY}/v2/_catalog > /tmp/nexus-images/catalog.json
-                                            cat /tmp/nexus-images/catalog.json
-                                            
-                                            echo "\nExporting Docker image metadata for troubleshooting..."
-                                            docker image inspect ${AUTH_SERVICE_IMAGE}:${VERSION} > /tmp/nexus-images/auth-service-metadata.json
-                                            
-                                            echo "\nDOCKER AND NEXUS CONFIGURATION SUMMARY:"
-                                            echo "1. Docker images exported to: /tmp/nexus-images/"
-                                            echo "2. Nexus API URL: http://${NEXUS_API}"
-                                            echo "3. Nexus Docker Registry URL: http://${NEXUS_DOCKER_REGISTRY}"
-                                            echo "4. Complete repository settings saved to: /tmp/nexus-images/repo-settings.json"
-                                            
-                                            echo "\nIMPORTANT MANUAL STEPS TO RESOLVE DOCKER HTTPS ISSUE:"
-                                            echo "1. Confirm in Nexus UI that HTTP is enabled with port 8082"
-                                            echo "2. Make sure Docker is configured to treat ${NEXUS_DOCKER_REGISTRY} as insecure"
-                                            echo "3. Check if the 'Docker Bearer Token Realm' is activated in Nexus security settings"
-                                            echo "4. Consider using a different tool like 'skopeo' that handles HTTP properly"
-                                            
-                                            echo "\nFALLBACK OPTION:"
-                                            echo "The Docker images have been saved to tar files in /tmp/nexus-images/"
-                                            echo "You can manually import these to Nexus or use them directly"
-                                            
-                                            echo "\n==== NEXUS ARCHIVE OPERATIONS COMPLETED ===="
+                                            echo "\n==== NEXUS PUSH OPERATIONS COMPLETED ===="
                                         '''
                                     }
                                 }
