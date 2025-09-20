@@ -339,56 +339,54 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Use a different approach that doesn't require messing with TLS certificates
+                                        // Simplified Nexus push approach with better error handling
                                         sh '''
-                                            # Use a different approach for insecure registry access
+                                            # Create a specific Docker config for Nexus
                                             echo "Configuring Docker for insecure registry access to ${NEXUS_REGISTRY}"
                                             
-                                            # Use environment variables to temporarily disable TLS verification for the current script
+                                            # Export environment variables to help with insecure registry
                                             export DOCKER_CLI_EXPERIMENTAL=enabled
                                             export DOCKER_TLS_VERIFY=""
                                             
-                                            # First verify if our daemon.json already has insecure registries
-                                            cat /etc/docker/daemon.json || echo "No daemon.json found, continuing"
+                                            # Create Docker directory for configuration
+                                            mkdir -p ~/.docker
                                             
-                                            # Do not try to modify system files, use CLI flags instead
+                                            # Create a custom config.json that explicitly includes insecure registries
+                                            echo '{"insecure-registries":["'${NEXUS_REGISTRY}'"], "auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" | base64 -w 0)'"}}}' > ~/.docker/config.json
                                             
-                                            # First tag the images
+                                            # Tag the images
                                             echo "Tagging images for Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
-                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Tagging auth-service failed"
-                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Tagging backend failed"
-                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Tagging frontend failed"
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
+                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
                                             
-                                            # Try logging in with --insecure-registry flag
+                                            # Direct login to Nexus - ignore errors
                                             echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
+                                            echo ${NEXUS_PASSWORD} | docker login ${NEXUS_REGISTRY} --username ${NEXUS_USERNAME} --password-stdin || true
                                             
-                                            # Create a temporary file for our auth
-                                            AUTH_CONFIG_FILE=$(mktemp -d)/config.json
-                                            mkdir -p $(dirname $AUTH_CONFIG_FILE)
-                                            echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" | base64 -w 0)'"}}}'> $AUTH_CONFIG_FILE
+                                            # Push images with retries
+                                            echo "Pushing to Nexus repository"
                                             
-                                            # Try direct push with skopeo if available
-                                            if command -v skopeo &> /dev/null; then
-                                                echo "Using skopeo for insecure registry push"
-                                                skopeo --insecure-policy copy --dest-tls-verify=false --authfile=$AUTH_CONFIG_FILE \
-                                                  docker-daemon:${AUTH_SERVICE_IMAGE}:${VERSION} docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Skopeo push failed"
-                                                  
-                                                skopeo --insecure-policy copy --dest-tls-verify=false --authfile=$AUTH_CONFIG_FILE \
-                                                  docker-daemon:${BACKEND_IMAGE}:${VERSION} docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Skopeo push failed"
-                                                  
-                                                skopeo --insecure-policy copy --dest-tls-verify=false --authfile=$AUTH_CONFIG_FILE \
-                                                  docker-daemon:${FRONTEND_IMAGE}:${VERSION} docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Skopeo push failed"
-                                            else
-                                                # Fallback to standard docker push
-                                                echo "Using standard docker push"
-                                                # Direct docker push attempts using --config
-                                                DOCKER_CONFIG=$(dirname $AUTH_CONFIG_FILE) docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
-                                                DOCKER_CONFIG=$(dirname $AUTH_CONFIG_FILE) docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
-                                                DOCKER_CONFIG=$(dirname $AUTH_CONFIG_FILE) docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
-                                            fi
+                                            # Push auth service
+                                            echo "Pushing ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} && echo "Successfully pushed auth-service" && break || echo "Retry $i for auth-service..."
+                                                sleep 3
+                                            done
                                             
-                                            # Clean up temporary auth file
-                                            rm -f $AUTH_CONFIG_FILE
+                                            # Push backend
+                                            echo "Pushing ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} && echo "Successfully pushed backend" && break || echo "Retry $i for backend..."
+                                                sleep 3
+                                            done
+                                            
+                                            # Push frontend
+                                            echo "Pushing ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} && echo "Successfully pushed frontend" && break || echo "Retry $i for frontend..."
+                                                sleep 3
+                                            done
                                             
                                             echo "Attempts to push to Nexus repository completed"
                                         '''
