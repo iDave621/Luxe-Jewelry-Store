@@ -348,16 +348,16 @@ pipeline {
                                             # Configure Docker to use HTTP for this registry
                                             # This is needed since we're seeing "http: server gave HTTP response to HTTPS client" errors
                                             export DOCKER_CLI_EXPERIMENTAL=enabled
-                                            export DOCKER_TLS_VERIFY=""
+                                            export DOCKER_TLS_VERIFY="0"
                                             
-                                            # Create Docker directory for configuration
+                                            # Create Docker directory for configuration - for current user only
                                             mkdir -p ~/.docker
                                             
-                                            # Create a standalone config.json for this job
-                                            # Explicitly mark registry as insecure
-                                            echo '{"insecure-registries":["'${NEXUS_REGISTRY}'"], "auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" | base64 -w 0)'"}}}' > ~/.docker/config.json
+                                            # Create a standard config.json with the correct format
+                                            # Note: Use this simplified format which is more compatible
+                                            echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" | base64 -w 0)'"}}}' > ~/.docker/config.json
                                             
-                                            # Verify the daemon configuration for debugging
+                                            # Verify the system daemon configuration for debugging
                                             cat /etc/docker/daemon.json || echo "No system daemon.json found"
                                             
                                             # Tag the images with correct registry path
@@ -368,9 +368,6 @@ pipeline {
                                             
                                             # Direct login to Nexus - ignore errors
                                             echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
-                                            # Force HTTP protocol
-                                            export DOCKER_TLS_VERIFY=""
-                                            export DOCKER_INSECURE_REGISTRY="${NEXUS_REGISTRY}"
                                             
                                             # Try pushing directly with the correct URL format - using http:// protocol
                                             echo "Pushing to Nexus repository using direct HTTP protocol"
@@ -379,18 +376,22 @@ pipeline {
                                             echo "Testing connectivity to Nexus registry..."
                                             curl -v -k http://${NEXUS_REGISTRY}/v2/ || echo "Warning: Cannot connect to Nexus registry"
                                             
+                                            # Attempt to authenticate with docker login - better approach
+                                            echo "Authenticating to registry using docker login"
+                                            echo ${NEXUS_PASSWORD} | docker login ${NEXUS_REGISTRY} --username ${NEXUS_USERNAME} --password-stdin || echo "Warning: Docker login failed"
+                                            
                                             # Push auth service
                                             echo "Pushing ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}..."
-                                            # Using --tls-verify=false to force HTTP protocol
-                                            DOCKER_CLI_EXPERIMENTAL=enabled docker --tlsverify=false --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
+                                            # Set environment variables correctly
+                                            DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_TLS_VERIFY=0 docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
                                             
                                             # Push backend
                                             echo "Pushing ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}..."
-                                            DOCKER_CLI_EXPERIMENTAL=enabled docker --tlsverify=false --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
+                                            DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_TLS_VERIFY=0 docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
                                             
                                             # Push frontend
                                             echo "Pushing ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}..."
-                                            DOCKER_CLI_EXPERIMENTAL=enabled docker --tlsverify=false --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
+                                            DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_TLS_VERIFY=0 docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
                                             
                                             echo "Attempts to push to Nexus repository completed"
                                         '''
