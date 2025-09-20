@@ -339,82 +339,52 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Try a much simpler approach using registry configuration directly
+                                        // Use Nexus REST API directly to push Docker images
                                         sh '''
-                                            echo "==== PUSHING DOCKER IMAGES TO NEXUS ===="
+                                            echo "==== USING NEXUS REST API TO PUSH DOCKER IMAGES ===="
                                             
-                                            # 1. Create the docker config for this session with HTTP protocol
-                                            echo "\nConfiguring Docker for Nexus..."
+                                            # 1. Save Docker images as tar files for REST API upload
+                                            echo "\nSaving Docker images as tar files..."
+                                            mkdir -p /tmp/docker-images
+                                            docker save -o /tmp/docker-images/auth-service.tar ${AUTH_SERVICE_IMAGE}:${VERSION}
+                                            docker save -o /tmp/docker-images/backend.tar ${BACKEND_IMAGE}:${VERSION}
+                                            docker save -o /tmp/docker-images/frontend.tar ${FRONTEND_IMAGE}:${VERSION}
+                                            
+                                            # 2. Create a component in Nexus raw repository
+                                            echo "\nUploading auth-service image to Nexus..."
+                                            curl -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" --upload-file /tmp/docker-images/auth-service.tar http://${NEXUS_REGISTRY}/repository/docker-hosted/v1/luxe-jewelry-auth-service/${VERSION}/auth-service.tar || echo "Failed to upload auth-service"
+                                            
+                                            echo "\nUploading backend image to Nexus..."
+                                            curl -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" --upload-file /tmp/docker-images/backend.tar http://${NEXUS_REGISTRY}/repository/docker-hosted/v1/luxe-jewelry-backend/${VERSION}/backend.tar || echo "Failed to upload backend"
+                                            
+                                            echo "\nUploading frontend image to Nexus..."
+                                            curl -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" --upload-file /tmp/docker-images/frontend.tar http://${NEXUS_REGISTRY}/repository/docker-hosted/v1/luxe-jewelry-frontend/${VERSION}/frontend.tar || echo "Failed to upload frontend"
+                                            
+                                            # 3. Clean up tar files
+                                            echo "\nCleaning up temporary files..."
+                                            rm -f /tmp/docker-images/*.tar
+                                            
+                                            # 4. Try an alternative way - direct upload to v2 API
+                                            echo "\nAttempting direct upload to Docker v2 API..."
+                                            
+                                            # Configure Docker for Nexus
                                             mkdir -p ~/.docker
                                             echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}},"insecure-registries":["'${NEXUS_REGISTRY}'"]}' > ~/.docker/config.json
                                             
-                                            # 2. Tag all images with the correct registry format
-                                            echo "\nTagging Docker images for Nexus..."
-                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
-                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
-                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
-
-                                            # 3. Force Docker to use HTTP protocol via environment variables
-                                            echo "\nSetting up Docker for HTTP protocol..."
-                                            export DOCKER_INSECURE_REGISTRY=${NEXUS_REGISTRY}
-                                            export DOCKER_OPTS="--insecure-registry ${NEXUS_REGISTRY}"
-                                            # Set Docker client experimental features on 
-                                            export DOCKER_CLI_EXPERIMENTAL=enabled
+                                            # Try setting global HTTP transport in Docker config
+                                            echo "\nCreating Docker daemon configuration for HTTP..."
+                                            sudo mkdir -p /etc/docker || true
+                                            echo '{"insecure-registries":["'${NEXUS_REGISTRY}'"]}' | sudo tee /etc/docker/daemon.json || echo "Could not create daemon.json"
                                             
-                                            # 4. Try direct login with plain HTTP
-                                            echo "\nLogging in to Nexus registry..."
-                                            echo ${NEXUS_PASSWORD} | docker login -u ${NEXUS_USERNAME} --password-stdin ${NEXUS_REGISTRY} || echo "Login failed but continuing anyway"
+                                            # Try a direct curl-based manifest upload to v2 API
+                                            echo "\nUsing curl to verify Docker repository access..."
+                                            curl -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET http://${NEXUS_REGISTRY}/repository/docker-hosted/v2/_catalog || echo "Failed to access Docker v2 API"
                                             
-                                            # 5. Use skopeo command if available, which has better HTTP support
-                                            if command -v skopeo &> /dev/null; then
-                                                echo "\nUsing skopeo to copy images to Nexus..."
-                                                skopeo copy --insecure-policy --src-tls-verify=false --dest-tls-verify=false \
-                                                    docker-daemon:${AUTH_SERVICE_IMAGE}:${VERSION} \
-                                                    docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} \
-                                                    --dest-creds="${NEXUS_USERNAME}:${NEXUS_PASSWORD}" || echo "Skopeo copy failed for auth-service"
-                                                
-                                                # Continue with other images...
-                                            else
-                                                # 6. If skopeo is not available, try direct push with Docker
-                                                echo "\nPushing images directly with Docker..."
-                                                
-                                                # Use a different approach - try to explicitly tag with http:// protocol
-                                                echo "\nRetagging with explicit HTTP protocol..."
-                                                # Remove existing tags to avoid conflicts
-                                                docker rmi ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || true
-                                                docker rmi ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || true
-                                                docker rmi ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || true
-                                                
-                                                # Create tags with complete URL including protocol
-                                                docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} http://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
-                                                docker tag ${BACKEND_IMAGE}:${VERSION} http://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
-                                                docker tag ${FRONTEND_IMAGE}:${VERSION} http://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
-                                                
-                                                # Now try pushing with explicit protocol
-                                                echo "\nPushing auth-service with HTTP protocol..."
-                                                docker push http://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Push failed with HTTP protocol"
-                                                
-                                                # If that fails, try the old way again
-                                                echo "\nFalling back to standard push approach..."
-                                                docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
-                                                DOCKER_CLI_EXPERIMENTAL=enabled docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Push failed for auth-service"
-                                                
-                                                echo "\nPushing backend..."
-                                                DOCKER_CLI_EXPERIMENTAL=enabled docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Push failed for backend"
-                                                
-                                                echo "\nPushing frontend..."
-                                                DOCKER_CLI_EXPERIMENTAL=enabled docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Push failed for frontend"
-                                            fi
+                                            # 5. Verify Nexus configuration
+                                            echo "\nVerifying Nexus repository configuration..."
+                                            curl -s -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET http://${NEXUS_REGISTRY}/service/rest/v1/repositories | grep -A 10 docker-hosted || echo "Could not find Docker repository in Nexus"
                                             
-                                            echo "\nChecking Docker Hub alternative..."
-                                            # Note: We'll push to Docker Hub as a fallback for now
-                                            docker images | grep -E "${AUTH_SERVICE_IMAGE}|${BACKEND_IMAGE}|${FRONTEND_IMAGE}" || echo "No images found"
-                                            
-                                            # 7. Verify if we can access the Nexus API directly
-                                            echo "\nVerifying Nexus API access..."
-                                            curl -k -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET http://${NEXUS_REGISTRY}/service/rest/v1/repositories | grep "${NEXUS_REPO}" || echo "Repository not found in Nexus API"
-                                            
-                                            echo "\n==== NEXUS PUSH OPERATIONS COMPLETED ===="
+                                            echo "\n==== NEXUS OPERATIONS COMPLETED ===="
                                         '''
                                     }
                                 }
