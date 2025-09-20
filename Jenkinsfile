@@ -21,15 +21,11 @@ pipeline {
         DOCKER_HUB_CRED_ID = "docker-hub"
         
         // Nexus Docker registry information
-        // Use Nexus API port with HTTPS for general Nexus operations
-        NEXUS_API = "192.168.1.117:8443"
-        // Use Docker-specific port for Docker registry operations with HTTPS
-        // This MUST be configured in Nexus Docker repository settings (HTTPS section)
-        NEXUS_DOCKER_REGISTRY = "192.168.1.117:8082"
-        // Use HTTPS for Docker registry operations as Docker insists on HTTPS
-        NEXUS_USE_HTTPS = true
-        // Simplified path without nested structure
+        // Nexus registry address with port
+        NEXUS_REGISTRY = "192.168.1.117:8082"
+        // Docker repository name in Nexus
         NEXUS_REPO = "docker-hosted"
+        // Jenkins credential ID for Nexus authentication
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
