@@ -307,7 +307,6 @@ pipeline {
                                         credentialsId: DOCKER_HUB_CRED_ID
                                     )
                                 }
-                                }
                             } catch (Exception e) {
                                 echo "Docker Hub push failed with error: ${e.message}"
                                 echo "Continue pipeline execution without failing the build"
