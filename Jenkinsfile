@@ -23,8 +23,8 @@ pipeline {
         // Nexus Docker registry with path-based routing
         // Using standard Nexus port 8081 as shown in repository configuration
         NEXUS_REGISTRY = "192.168.1.117:8081"
-        // Repository path as shown in Nexus configuration
-        NEXUS_REPO = "repository/docker-hosted"
+        // Repository path as shown in Nexus configuration - v2 API path format
+        NEXUS_REPO = "v2/docker-hosted"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -335,23 +335,36 @@ pipeline {
                         timeout(time: 5, unit: 'MINUTES') {
                             withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                 sh '''
-                                    # Try a simplified approach without special Docker configs
+                                    # Create a custom Docker config file that works
                                     echo "Configuring Nexus Docker registry access at ${NEXUS_REGISTRY}"
                                     
-                                    # Simple environment variables approach
+                                    # Create Docker config directory
+                                    mkdir -p ~/.docker
+                                    
+                                    # Create config.json with explicit insecure registry settings
+                                    cat > ~/.docker/config.json << EOL
+{
+  "insecure-registries": [
+    "192.168.1.117:8081"
+  ]
+}
+EOL
+                                    
+                                    # Set Docker to non-secure mode
+                                    export DOCKER_TLS_VERIFY=0
                                     export DOCKER_CONTENT_TRUST=0
                                     
-                                    # Login to Nexus Docker registry
-                                    echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
-                                    echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin || true
+                                    # Login to Nexus Docker registry using v2 API path
+                                    echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
+                                    echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} --username $NEXUS_USERNAME --password-stdin || true
                                     
-                                    # Tag images for Nexus using port 8081 and repository name
+                                    # Tag images for Nexus using v2 API path
                                     echo "Tagging images for Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
                                     docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
                                     docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
                                     docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
                                     
-                                    # Push images to Nexus registry
+                                    # Push images to Nexus registry with v2 API path
                                     echo "Pushing images to Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
                                     docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
                                     docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
