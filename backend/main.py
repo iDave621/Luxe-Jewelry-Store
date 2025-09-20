@@ -56,7 +56,9 @@ products_db = [
         "id": 1,
         "name": "Diamond Engagement Ring",
         "price": 2999.00,
-        "image": "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=300&h=300&fit=crop",
+        "image": (
+            "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=300&h=300&fit=crop"
+        ),
         "description": "Elegant 1.5 carat diamond ring in 18k white gold",
         "category": "rings",
         "in_stock": True
@@ -65,7 +67,9 @@ products_db = [
         "id": 2,
         "name": "Pearl Necklace",
         "price": 899.00,
-        "image": "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=300&h=300&fit=crop",
+        "image": (
+            "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=300&h=300&fit=crop"
+        ),
         "description": "Classic freshwater pearl necklace with sterling silver clasp",
         "category": "necklaces",
         "in_stock": True
@@ -74,7 +78,9 @@ products_db = [
         "id": 3,
         "name": "Gold Bracelet",
         "price": 1299.00,
-        "image": "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=300&h=300&fit=crop",
+        "image": (
+            "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=300&h=300&fit=crop"
+        ),
         "description": "Handcrafted 14k gold chain bracelet",
         "category": "bracelets",
         "in_stock": True
@@ -83,7 +89,9 @@ products_db = [
         "id": 4,
         "name": "Sapphire Earrings",
         "price": 1599.00,
-        "image": "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=300&h=300&fit=crop",
+        "image": (
+            "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=300&h=300&fit=crop"
+        ),
         "description": "Blue sapphire stud earrings in white gold setting",
         "category": "earrings",
         "in_stock": True
@@ -92,7 +100,9 @@ products_db = [
         "id": 5,
         "name": "Ruby Tennis Bracelet",
         "price": 3499.00,
-        "image": "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?w=300&h=300&fit=crop",
+        "image": (
+            "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?w=300&h=300&fit=crop"
+        ),
         "description": "Stunning ruby tennis bracelet with 18k white gold setting",
         "category": "bracelets",
         "in_stock": True
@@ -101,7 +111,9 @@ products_db = [
         "id": 6,
         "name": "Emerald Pendant",
         "price": 2199.00,
-        "image": "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=300&h=300&fit=crop",
+        "image": (
+            "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=300&h=300&fit=crop"
+        ),
         "description": "Exquisite emerald pendant with diamond accents",
         "category": "necklaces",
         "in_stock": True
@@ -128,7 +140,8 @@ async def get_current_user(user_id: str = Depends(verify_token)):
 
     try:
         async with httpx.AsyncClient() as client:
-            headers = {"Authorization": f"Bearer {jwt.encode({'sub': user_id}, JWT_SECRET_KEY, algorithm=ALGORITHM)}"}
+            token = jwt.encode({'sub': user_id}, JWT_SECRET_KEY, algorithm=ALGORITHM)
+            headers = {"Authorization": f"Bearer {token}"}
             response = await client.get(f"{AUTH_SERVICE_URL}/auth/me", headers=headers)
             if response.status_code == 200:
                 return response.json()
