@@ -326,9 +326,13 @@ pipeline {
                         timeout(time: 5, unit: 'MINUTES') {
                             withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                 sh '''
-                                    # Create temporary Docker config with insecure registry setting
+                                    # Create temporary Docker config with insecure registry setting using proper JSON format
                                     mkdir -p ~/.docker
-                                    echo "{\"insecure-registries\":[\"${NEXUS_REGISTRY}\"]}" > ~/.docker/config.json
+                                    cat > ~/.docker/config.json << EOF
+{
+  "insecure-registries": ["192.168.1.117:8081"]
+}
+EOF
                                     cat ~/.docker/config.json
                                     
                                     # Login to Nexus Docker registry
