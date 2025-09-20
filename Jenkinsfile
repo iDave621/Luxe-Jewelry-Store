@@ -1,8 +1,8 @@
 library identifier: 'luxe-jewelry-lib@main',
         retriever: modernSCM([
             $class: 'GitSCMSource',
-            remote: 'https://github.com/iDave621/jenkins-shared-library.git',
-            traits: [[$class: 'FreshCloneReference']] // Force a fresh clone
+            remote: 'https://github.com/iDave621/jenkins-shared-library.git'
+            // Using library without additional traits
         ])
 
 pipeline {
