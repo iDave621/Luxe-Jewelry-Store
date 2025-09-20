@@ -289,50 +289,11 @@ pipeline {
             }
         }
         
-        stage('Deploy App') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                            # Debug credentials
-                            echo "Docker username: $DOCKER_USER"
-                            echo "Password length: ${#DOCKER_PASS}"
-                            echo "First 3 chars of password: $(echo "$DOCKER_PASS" | cut -c1-3)..."
-                            
-                            # Try manual login first to test credentials
-                            docker logout || true
-                            
-                            # Login to Docker Hub
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                            
-                            # Verify login worked
-                            docker info | grep Username || echo "Login verification failed"
-                            
-                            # Push images to registry
-                            docker push ${DOCKER_USER}/luxe-jewelry-auth-service:${VERSION}
-                            docker push ${DOCKER_USER}/luxe-jewelry-backend:${VERSION}
-                            docker push ${DOCKER_USER}/luxe-jewelry-frontend:${VERSION}
-                            
-                            # Deploy using docker-compose
-                            docker-compose down || true
-                            docker-compose up -d
-                            
-                            # Give containers a moment to start and verify they're running
-                            sleep 10
-                            docker ps
-                            
-                            echo "Deployment complete - All 3 services running"
-                        '''
-                    }
-                }
-            }
-        }
-        
         stage('Push to Nexus Registry') {
             steps {
                 script {
                     try {
-                        timeout(time: 5, unit: 'MINUTES') {
+                        timeout(time: 10, unit: 'MINUTES') {
                             withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                 sh '''
                                     # Create a custom Docker config file that works
@@ -354,8 +315,9 @@ EOL
                                     export DOCKER_TLS_VERIFY=0
                                     export DOCKER_CONTENT_TRUST=0
                                     
-                                    # Login to Nexus Docker registry using v2 API path
-                                    echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
+                                    # Login to Nexus Docker registry
+                                    # Important: Login to base Nexus URL, NOT the v2 path
+                                    echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
                                     echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} --username $NEXUS_USERNAME --password-stdin || true
                                     
                                     # Tag images for Nexus using v2 API path
@@ -381,6 +343,27 @@ EOL
                 }
             }
         }
+        
+        stage('Deploy App') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh '''
+                            # Deploy using docker-compose
+                            docker-compose down || true
+                            docker-compose up -d
+                            
+                            # Give containers a moment to start and verify they're running
+                            sleep 10
+                            docker ps
+                            
+                            echo "Deployment complete - All 3 services running"
+                        '''
+                    }
+                }
+            }
+        }
+        
     }
     
     post {
