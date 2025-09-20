@@ -20,10 +20,11 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus Docker registry via standard Nexus HTTP port
-        // Using the main Nexus port 8081 with path-based repository access
-        NEXUS_REGISTRY = "192.168.1.117:8081"
-        NEXUS_REPO = "repository/docker-hosted"
+        // Nexus Docker registry via Docker connector port
+        // Using the dedicated Docker API port 8082
+        NEXUS_REGISTRY = "192.168.1.117:8082"
+        // No repository prefix needed with dedicated Docker connector
+        NEXUS_REPO = ""
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -326,27 +327,39 @@ pipeline {
                         timeout(time: 5, unit: 'MINUTES') {
                             withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                 sh '''
-                                    # Configure Docker daemon to use port 8083 for Docker registry
-                                    echo "Configuring Nexus Docker registry at ${NEXUS_REGISTRY} with direct port 8083"
+                                    # Configure Docker daemon with insecure registry
+                                    echo "Configuring Docker for insecure registry at ${NEXUS_REGISTRY}"
                                     
-                                    # Tag images using Docker registry direct port 8083
-                                    NEXUS_DOCKER_REGISTRY="192.168.1.117:8083"
+                                    # Create a temporary directory for Docker config
+                                    mkdir -p /tmp/.docker
                                     
-                                    # Try direct login with port 8083
-                                    echo "Logging in to Nexus Docker registry at ${NEXUS_DOCKER_REGISTRY}"
-                                    echo $NEXUS_PASSWORD | docker login ${NEXUS_DOCKER_REGISTRY} -u $NEXUS_USERNAME --password-stdin || true
+                                    # Create a proper Docker config with insecure registry setting
+                                    cat > /tmp/.docker/config.json << EOL
+{
+  "insecure-registries": [
+    "192.168.1.117:8082"
+  ]
+}
+EOL
                                     
-                                    # Tag images for Nexus using port 8083 directly
-                                    echo "Tagging images for Nexus at ${NEXUS_DOCKER_REGISTRY}"
-                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
-                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
-                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                    # Verify config was created correctly
+                                    cat /tmp/.docker/config.json
+                                    
+                                    # Login to Nexus Docker registry with port 8082
+                                    echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
+                                    echo $NEXUS_PASSWORD | docker --config /tmp/.docker login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin || true
+                                    
+                                    # Tag images for Nexus using port 8082
+                                    echo "Tagging images for Nexus at ${NEXUS_REGISTRY}"
+                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
+                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
                                     
                                     # Push images to Nexus registry
-                                    echo "Pushing images to Nexus at ${NEXUS_DOCKER_REGISTRY}"
-                                    docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
-                                    docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
-                                    docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
+                                    echo "Pushing images to Nexus at ${NEXUS_REGISTRY}"
+                                    docker --config /tmp/.docker push ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
+                                    docker --config /tmp/.docker push ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
+                                    docker --config /tmp/.docker push ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
                                     
                                     echo "Attempts to push to Nexus repository completed"
                                 '''
