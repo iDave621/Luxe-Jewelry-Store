@@ -326,30 +326,23 @@ pipeline {
                         timeout(time: 5, unit: 'MINUTES') {
                             withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                 sh '''
-                                    # Create temporary Docker config with insecure registry setting using proper JSON format
-                                    mkdir -p ~/.docker
-                                    cat > ~/.docker/config.json << EOF
-{
-  "insecure-registries": ["192.168.1.117:8081"]
-}
-EOF
-                                    cat ~/.docker/config.json
+                                    echo "DEBUG: Temporarily skipping Nexus push to diagnose the issue"
+                                    echo "DEBUG: Nexus registry: ${NEXUS_REGISTRY}"
+                                    echo "DEBUG: Nexus repository: ${NEXUS_REPO}"
+                                    echo "DEBUG: Docker would tag: ${AUTH_SERVICE_IMAGE}:${VERSION} as ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}"
                                     
-                                    # Login to Nexus Docker registry
-                                    echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
-                                    echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} -u $NEXUS_USERNAME --password-stdin
+                                    # Examine Docker info to see if insecure registries are configured
+                                    docker info | grep -A5 "Insecure Registries:"
                                     
-                                    echo "Pushing to Nexus registry: ${NEXUS_REGISTRY}/${NEXUS_REPO}"
+                                    # Test connection to Nexus directly
+                                    echo "Testing connection to Nexus:"
+                                    curl -v http://${NEXUS_REGISTRY}/service/rest/v1/status 2>&1 | grep "HTTP/"
                                     
-                                    # Tag images for Nexus using direct format
-                                    docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
-                                    docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
-                                    docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
+                                    echo "IMPORTANT: For the next steps, we should configure Nexus to use SSL or"
+                                    echo "modify the Docker daemon configuration in /etc/docker/daemon.json on the agent"
+                                    echo "to add ${NEXUS_REGISTRY} as an insecure registry and restart the Docker daemon."
                                     
-                                    # Push images to Nexus registry directly
-                                    docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}
-                                    docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}
-                                    docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}
+                                    # NOTE: We're skipping the actual push for now
                                     
                                     echo "Attempts to push to Nexus repository completed"
                                 '''
