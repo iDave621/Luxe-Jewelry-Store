@@ -15,9 +15,15 @@ services:
     command: >
       /bin/bash -c "
         apt-get update && apt-get install -y curl &&
+        # Fix Docker socket permissions
+        DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) &&
+        groupadd -g ${DOCKER_GID} docker_host || true &&
+        usermod -aG docker_host jenkins &&
+        # Setup agent directory
         cd /home/jenkins/agent &&
         echo '3ca527028b20356579fc309d877a109676f0df2fd26bd5d1b15c963e833e8afc' > secret-file &&
         chown -R jenkins:jenkins /home/jenkins/agent &&
+        chmod 666 /var/run/docker.sock &&
         curl -sO http://jenkins-blueocean:8080/jnlpJars/agent.jar &&
         su jenkins -c 'java -jar /home/jenkins/agent/agent.jar -url http://jenkins-blueocean:8080/ -secret @secret-file -name "docker-agent" -webSocket -workDir "/home/jenkins/agent"'
       "
