@@ -340,56 +340,41 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Use Docker commands with HTTPS for Nexus Docker registry
+                                        // Use Docker commands with Jenkins-nexus credentials and insecure registry
                                         sh '''
-                                            echo "==== PUSHING DOCKER IMAGES TO NEXUS REGISTRY USING HTTPS ===="
+                                            echo "==== PUSHING DOCKER IMAGES TO NEXUS REGISTRY ===="
                                             
-                                            # Check for Docker certificates directory for our registry
-                                            echo "\nVerifying Docker certificates setup..."
-                                            if [ ! -d "/etc/docker/certs.d/${NEXUS_DOCKER_REGISTRY}" ]; then
-                                                echo "Warning: No certificates directory found for ${NEXUS_DOCKER_REGISTRY}"
-                                                echo "Docker may not trust the Nexus certificate"
-                                                echo "Creating directory for certificate..."
-                                                mkdir -p /etc/docker/certs.d/${NEXUS_DOCKER_REGISTRY}
-                                            else
-                                                echo "Certificate directory exists for ${NEXUS_DOCKER_REGISTRY}"
-                                            fi
-                                            
-                                            # 1. Create Docker configuration with registry auth
-                                            echo "\nConfiguring Docker authentication..."
+                                            # Configure Docker to use insecure registry
+                                            echo "\nConfiguring Docker with insecure registry and credentials..."
                                             mkdir -p ~/.docker
-                                            echo '{"auths":{"'${NEXUS_DOCKER_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}}}' > ~/.docker/config.json
+                                            echo '{"auths":{"'${NEXUS_DOCKER_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}}, "insecure-registries": ["'${NEXUS_DOCKER_REGISTRY}'"] }' > ~/.docker/config.json
                                             
-                                            # 2. Tag the images with our HTTPS registry
-                                            echo "\nTagging Docker images for HTTPS Nexus registry..."
+                                            # Set environment variables for Docker
+                                            export DOCKER_TLS_VERIFY=0
+                                            
+                                            # Tag the images for Nexus
+                                            echo "\nTagging Docker images for Nexus registry..."
                                             docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
                                             docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
                                             docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
                                             
-                                            # 3. Log in to the Nexus registry
+                                            # Login to Nexus registry
                                             echo "\nLogging in to Nexus Docker registry..."
                                             echo ${NEXUS_PASSWORD} | docker login -u ${NEXUS_USERNAME} --password-stdin ${NEXUS_DOCKER_REGISTRY}
                                             
-                                            # 4. Push images to Nexus registry
-                                            echo "\nPushing auth-service to Nexus (with retry logic)..."
-                                            for i in 1 2 3; do
-                                                docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION} && break || echo "Attempt $i failed, retrying..."
-                                                sleep 3
-                                            done
+                                            # Push images to Nexus registry
+                                            echo "\nPushing images to Nexus registry..."
                                             
-                                            echo "\nPushing backend to Nexus (with retry logic)..."
-                                            for i in 1 2 3; do
-                                                docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION} && break || echo "Attempt $i failed, retrying..."
-                                                sleep 3
-                                            done
+                                            echo "Pushing auth-service image..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
                                             
-                                            echo "\nPushing frontend to Nexus (with retry logic)..."
-                                            for i in 1 2 3; do
-                                                docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} && break || echo "Attempt $i failed, retrying..."
-                                                sleep 3
-                                            done
+                                            echo "Pushing backend image..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
                                             
-                                            # 5. Verify the push was successful
+                                            echo "Pushing frontend image..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                            
+                                            # Verify the push was successful
                                             echo "\nVerifying Nexus repository contents..."
                                             curl -k -s -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET https://${NEXUS_DOCKER_REGISTRY}/v2/_catalog
                                             
