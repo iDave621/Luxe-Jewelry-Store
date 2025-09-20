@@ -1,4 +1,8 @@
-@Library('luxe-jewelry-lib') _
+library identifier: 'luxe-jewelry-lib@main',
+        retriever: modernSCM([
+            $class: 'GitSCMSource',
+            remote: 'https://github.com/iDave621/jenkins-shared-library.git'
+        ])
 
 pipeline {
     agent {
