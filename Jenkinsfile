@@ -20,12 +20,11 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus Docker registry with path-based routing
+        // Nexus Docker registry information
         // Using standard Nexus port 8081 as shown in repository configuration
         NEXUS_REGISTRY = "192.168.1.117:8081"
-        // Repository path as shown in Nexus configuration
-        // Experiment with different path formats due to Nexus path configuration variability
-        NEXUS_REPO = "repository/docker-hosted"
+        // Try the simplest path configuration
+        NEXUS_REPO = "docker-hosted"
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -340,46 +339,52 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Use a drastically different approach focusing on HTTP protocol
+                                        // Go back to basics - complete investigation and troubleshooting approach
                                         sh '''
-                                            echo "Using direct HTTP approach for Nexus registry access"
+                                            echo "==== NEXUS REGISTRY TROUBLESHOOTING ===="
                                             
-                                            # Create a helper function to push using skopeo which supports HTTP directly
-                                            push_to_nexus() {
-                                                local SRC_IMAGE=$1
-                                                local DEST_NAME=$2
-                                                echo "Pushing ${SRC_IMAGE} to Nexus as ${DEST_NAME}"
-                                                
-                                                # First tag the image with our target name
-                                                docker tag ${SRC_IMAGE} ${NEXUS_REGISTRY}/${DEST_NAME} || echo "Tag failed for ${DEST_NAME}"
-                                                
-                                                # Then try several direct methods to push with HTTP
-                                                echo "Method 1: Push using Docker with HTTP protocol URL"
-                                                docker push ${NEXUS_REGISTRY}/${DEST_NAME} || echo "Standard push failed for ${DEST_NAME}"
-                                            }
+                                            # 1. Check Docker daemon configuration first
+                                            echo "\n1. DOCKER DAEMON CONFIGURATION:"
+                                            cat /etc/docker/daemon.json || echo "No daemon.json found"
                                             
-                                            # Create a file with credentials to avoid passing on command line
+                                            # 2. Test basic Nexus connectivity with curl
+                                            echo "\n2. NEXUS CONNECTIVITY TEST:"
+                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/v2/ || echo "Failed basic v2 API connection"
+                                            
+                                            # 3. Try various repository paths
+                                            echo "\n3. EXPLORING REPOSITORY PATHS:"
+                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/${NEXUS_REPO}/v2/ || echo "Failed repo path v2 API"
+                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/repository/${NEXUS_REPO}/v2/ || echo "Failed alternate repo path"
+                                            
+                                            # 4. Try to get catalog info from different paths
+                                            echo "\n4. CATALOG ACCESS ATTEMPTS:"
+                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/v2/_catalog || echo "Failed catalog access"
+                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/${NEXUS_REPO}/v2/_catalog || echo "Failed repo catalog access"
+                                            
+                                            # 5. Try different Docker command approaches
+                                            echo "\n5. SETTING UP DOCKER CONFIG:"
                                             mkdir -p ~/.docker
                                             echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" | base64 -w 0)'"}}}' > ~/.docker/config.json
                                             
-                                            # Try direct HTTP registry modification
-                                            echo "NEXUS_REGISTRY = ${NEXUS_REGISTRY}"
-                                            echo "NEXUS_REPO = ${NEXUS_REPO}"
+                                            # 6. Try basic Docker login
+                                            echo "\n6. TESTING DOCKER LOGIN:"
+                                            echo ${NEXUS_PASSWORD} | docker login -u ${NEXUS_USERNAME} --password-stdin ${NEXUS_REGISTRY} || echo "Docker login failed"
                                             
-                                            # Try a direct registry config update using docker config command
-                                            docker version
+                                            # 7. Test a simple tag
+                                            echo "\n7. TESTING DOCKER TAG:"
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Docker tag failed"
                                             
-                                            # Process each image using our helper function
-                                            push_to_nexus "${AUTH_SERVICE_IMAGE}:${VERSION}" "${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION}"
-                                            push_to_nexus "${BACKEND_IMAGE}:${VERSION}" "${NEXUS_REPO}/luxe-jewelry-backend:${VERSION}"
-                                            push_to_nexus "${FRONTEND_IMAGE}:${VERSION}" "${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION}"
+                                            # 8. Try forcing HTTP protocol for push
+                                            echo "\n8. ATTEMPTING DOCKER PUSH WITH HTTP:"
+                                            export DOCKER_DISABLE_TLS=true
+                                            export DOCKER_TLS_VERIFY=""
+                                            docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Push failed"
                                             
-                                            # Using curl as a last resort to inspect the registry API
-                                            echo "Using curl to probe registry API endpoints"
-                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/v2/ || echo "Failed to access registry v2 API"
-                                            curl -k -v -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" http://${NEXUS_REGISTRY}/v2/_catalog || echo "Failed to access registry catalog"
-                                                                                    
-                                            echo "All Nexus registry operations completed - check logs for results"
+                                            # 9. Show all configured Docker registries
+                                            echo "\n9. DOCKER REGISTRY INFORMATION:"
+                                            docker info | grep -A 10 Registry || echo "No registry info found"
+                                            
+                                            echo "\n==== TROUBLESHOOTING COMPLETED ===="
                                         '''
                                     }
                                 }
