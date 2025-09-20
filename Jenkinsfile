@@ -268,25 +268,65 @@ pipeline {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     // Using Jenkins credentials for secure Docker Hub login
                                     withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                                        // Normal Docker Hub login
-                                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                                        // Print username (but not password) for debugging
+                                        sh 'echo "Using Docker Hub username: $DOCKER_USERNAME"'
+                                        
+                                        // Force Docker to log out first to ensure clean login
+                                        sh 'docker logout'
+                                        
+                                        // Explicitly login to Docker Hub with full URL
+                                        sh 'echo $DOCKER_PASSWORD | docker login https://index.docker.io/v1/ -u $DOCKER_USERNAME --password-stdin'
+                                        
+                                        // Verify we're logged in and can access the repositories
+                                        sh 'docker info | grep "Username"'
+                                        
+                                        // Push with detailed error messages
                                         sh '''
-                                            # Push auth-service images
-                                            docker push ${AUTH_SERVICE_IMAGE}:${VERSION} || echo "Failed to push auth service to Docker Hub"
-                                            docker push ${AUTH_SERVICE_IMAGE}:latest || echo "Failed to push auth service latest to Docker Hub"
+                                            echo "Pushing to Docker Hub as $DOCKER_USERNAME"
                                             
-                                            # Push backend images
-                                            docker push ${BACKEND_IMAGE}:${VERSION} || echo "Failed to push backend to Docker Hub"
-                                            docker push ${BACKEND_IMAGE}:latest || echo "Failed to push backend latest to Docker Hub"
+                                            # Push auth-service images with retries
+                                            echo "Pushing ${AUTH_SERVICE_IMAGE}:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker push ${AUTH_SERVICE_IMAGE}:${VERSION} && break || echo "Retry $i for auth service..."
+                                                sleep 3
+                                            done
                                             
-                                            # Push frontend images
-                                            docker push ${FRONTEND_IMAGE}:${VERSION} || echo "Failed to push frontend to Docker Hub"
-                                            docker push ${FRONTEND_IMAGE}:latest || echo "Failed to push frontend latest to Docker Hub"
+                                            echo "Pushing ${AUTH_SERVICE_IMAGE}:latest..."
+                                            for i in 1 2 3; do
+                                                docker push ${AUTH_SERVICE_IMAGE}:latest && break || echo "Retry $i for auth service latest..."
+                                                sleep 3
+                                            done
+                                            
+                                            # Push backend images with retries
+                                            echo "Pushing ${BACKEND_IMAGE}:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker push ${BACKEND_IMAGE}:${VERSION} && break || echo "Retry $i for backend..."
+                                                sleep 3
+                                            done
+                                            
+                                            echo "Pushing ${BACKEND_IMAGE}:latest..."
+                                            for i in 1 2 3; do
+                                                docker push ${BACKEND_IMAGE}:latest && break || echo "Retry $i for backend latest..."
+                                                sleep 3
+                                            done
+                                            
+                                            # Push frontend images with retries
+                                            echo "Pushing ${FRONTEND_IMAGE}:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker push ${FRONTEND_IMAGE}:${VERSION} && break || echo "Retry $i for frontend..."
+                                                sleep 3
+                                            done
+                                            
+                                            echo "Pushing ${FRONTEND_IMAGE}:latest..."
+                                            for i in 1 2 3; do
+                                                docker push ${FRONTEND_IMAGE}:latest && break || echo "Retry $i for frontend latest..."
+                                                sleep 3
+                                            done
                                         '''
                                     }
                                 }
                             } catch (Exception e) {
-                                echo "Docker Hub push skipped: ${e.message}"
+                                echo "Docker Hub push failed with error: ${e.message}"
                                 echo "Continue pipeline execution without failing the build"
                             }
                         }
@@ -299,40 +339,56 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                                        // Use a different approach that doesn't require messing with TLS certificates
                                         sh '''
-                                            # Ensure docker can be used without TLS verification for Nexus
-                                            echo "Configuring Docker for insecure registry access"
+                                            # Use a different approach for insecure registry access
+                                            echo "Configuring Docker for insecure registry access to ${NEXUS_REGISTRY}"
                                             
-                                            # Create ~/.docker directory and config.json
-                                            mkdir -p ~/.docker
-                                            echo '{"insecure-registries":["192.168.1.117:8081"]}' > ~/.docker/config.json
+                                            # Use environment variables to temporarily disable TLS verification for the current script
+                                            export DOCKER_CLI_EXPERIMENTAL=enabled
+                                            export DOCKER_TLS_VERIFY=""
                                             
-                                            # Create fake empty cert files to satisfy Docker
-                                            touch ~/.docker/ca.pem || true
-                                            touch ~/.docker/cert.pem || true
-                                            touch ~/.docker/key.pem || true
+                                            # First verify if our daemon.json already has insecure registries
+                                            cat /etc/docker/daemon.json || echo "No daemon.json found, continuing"
                                             
-                                            # Environment variables for insecure registry
-                                            export DOCKER_TLS_VERIFY=0
-                                            export DOCKER_CONTENT_TRUST=0
+                                            # Do not try to modify system files, use CLI flags instead
                                             
-                                            # Login to Nexus Docker registry directly (without path)
-                                            echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
-                                            echo $NEXUS_PASSWORD | docker login ${NEXUS_REGISTRY} --username $NEXUS_USERNAME --password-stdin || echo "Login failed but continuing"
-                                            
-                                            # Tag images for Nexus using v2 API path
+                                            # First tag the images
                                             echo "Tagging images for Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
                                             docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Tagging auth-service failed"
                                             docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Tagging backend failed"
                                             docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Tagging frontend failed"
                                             
-                                            # Push images to Nexus registry with v2 API path
-                                            echo "Pushing images to Nexus at ${NEXUS_REGISTRY}/${NEXUS_REPO}"
+                                            # Try logging in with --insecure-registry flag
+                                            echo "Logging in to Nexus Docker registry at ${NEXUS_REGISTRY}"
                                             
-                                            # Try alternative approach: use --config for direct specification
-                                            docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
-                                            docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
-                                            docker --config ~/.docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
+                                            # Create a temporary file for our auth
+                                            AUTH_CONFIG_FILE=$(mktemp -d)/config.json
+                                            mkdir -p $(dirname $AUTH_CONFIG_FILE)
+                                            echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" | base64 -w 0)'"}}}'> $AUTH_CONFIG_FILE
+                                            
+                                            # Try direct push with skopeo if available
+                                            if command -v skopeo &> /dev/null; then
+                                                echo "Using skopeo for insecure registry push"
+                                                skopeo --insecure-policy copy --dest-tls-verify=false --authfile=$AUTH_CONFIG_FILE \
+                                                  docker-daemon:${AUTH_SERVICE_IMAGE}:${VERSION} docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Skopeo push failed"
+                                                  
+                                                skopeo --insecure-policy copy --dest-tls-verify=false --authfile=$AUTH_CONFIG_FILE \
+                                                  docker-daemon:${BACKEND_IMAGE}:${VERSION} docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Skopeo push failed"
+                                                  
+                                                skopeo --insecure-policy copy --dest-tls-verify=false --authfile=$AUTH_CONFIG_FILE \
+                                                  docker-daemon:${FRONTEND_IMAGE}:${VERSION} docker://${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Skopeo push failed"
+                                            else
+                                                # Fallback to standard docker push
+                                                echo "Using standard docker push"
+                                                # Direct docker push attempts using --config
+                                                DOCKER_CONFIG=$(dirname $AUTH_CONFIG_FILE) docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-auth-service:${VERSION} || echo "Failed to push auth-service"
+                                                DOCKER_CONFIG=$(dirname $AUTH_CONFIG_FILE) docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-backend:${VERSION} || echo "Failed to push backend"
+                                                DOCKER_CONFIG=$(dirname $AUTH_CONFIG_FILE) docker push ${NEXUS_REGISTRY}/${NEXUS_REPO}/luxe-jewelry-frontend:${VERSION} || echo "Failed to push frontend"
+                                            fi
+                                            
+                                            # Clean up temporary auth file
+                                            rm -f $AUTH_CONFIG_FILE
                                             
                                             echo "Attempts to push to Nexus repository completed"
                                         '''
