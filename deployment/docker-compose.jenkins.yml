@@ -16,10 +16,10 @@ services:
       /bin/bash -c "
         apt-get update && apt-get install -y curl &&
         cd /home/jenkins/agent &&
-        echo '647e04c3154c54609176a9aa306b48b028005f0fcb86beeabde85cb8bda64809' > secret-file &&
+        echo '3ca527028b20356579fc309d877a109676f0df2fd26bd5d1b15c963e833e8afc' > secret-file &&
         chown -R jenkins:jenkins /home/jenkins/agent &&
-        curl -sO http://172.18.0.2:8080/jnlpJars/agent.jar &&
-        su jenkins -c 'java -jar /home/jenkins/agent/agent.jar -url http://172.18.0.2:8080/ -secret @secret-file -name "docker-agent" -webSocket -workDir "/home/jenkins/agent"'
+        curl -sO http://jenkins-blueocean:8080/jnlpJars/agent.jar &&
+        su jenkins -c 'java -jar /home/jenkins/agent/agent.jar -url http://jenkins-blueocean:8080/ -secret @secret-file -name "docker-agent" -webSocket -workDir "/home/jenkins/agent"'
       "
 
 networks:
