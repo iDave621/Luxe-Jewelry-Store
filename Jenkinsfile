@@ -161,25 +161,9 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Try multiple common Docker Hub credential IDs
-                        def credentialIds = ['docker-hub', 'dockerhub', 'docker-hub-credentials', 'dockerhub-credentials', 'docker_hub', 'DOCKERHUB_CREDENTIALS']
-                        def workingCredId = null
-                        
-                        echo "=== Finding Docker Hub Credentials ==="
-                        echo "Pipeline job: ${env.JOB_NAME}"
-                        echo "Build number: ${env.BUILD_NUMBER}"
-                        
-                        for (credId in credentialIds) {
-                            if (workingCredId) break
-                            try {
-                                withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
-                                    echo "✓ Found working credential ID: ${credId}"
-                                    workingCredId = credId
-                                }
-                            } catch (Exception e) {
-                                echo "✗ Credential ID '${credId}' not found: ${e.message}"
-                            }
-                        }
+                        // Use the defined Docker Hub credential ID
+                        def workingCredId = DOCKER_HUB_CRED_ID
+                        echo "=== Using Docker Hub Credential: ${workingCredId} ==="
                         
                         if (workingCredId) {
                             echo "Using Docker Hub credential ID: ${workingCredId}"
@@ -206,14 +190,6 @@ pipeline {
                                     snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                                 '''
                             }
-                        } else {
-                            echo "❌ No Docker Hub credentials found with common IDs"
-                            echo "Please create a Docker Hub credential in Jenkins with one of these IDs:"
-                            echo "  - dockerhub (recommended)"
-                            echo "  - docker-hub-credentials" 
-                            echo "  - dockerhub-credentials"
-                            echo "Credential type: Username with password"
-                            echo "Skipping Snyk scans for this build."
                         }
                         
                         // Archive scan results (if any were produced)
