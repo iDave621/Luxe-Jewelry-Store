@@ -287,44 +287,26 @@ pipeline {
                                         sh '''
                                             echo "Pushing to Docker Hub as $DOCKER_USERNAME"
                                             
-                                            # Push auth-service images with retries
+                                            # Push auth-service images
                                             echo "Pushing ${AUTH_SERVICE_IMAGE}:${VERSION}..."
-                                            for i in 1 2 3; do
-                                                docker push ${AUTH_SERVICE_IMAGE}:${VERSION} && break || echo "Retry $i for auth service..."
-                                                sleep 3
-                                            done
+                                            docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
                                             
                                             echo "Pushing ${AUTH_SERVICE_IMAGE}:latest..."
-                                            for i in 1 2 3; do
-                                                docker push ${AUTH_SERVICE_IMAGE}:latest && break || echo "Retry $i for auth service latest..."
-                                                sleep 3
-                                            done
+                                            docker push ${AUTH_SERVICE_IMAGE}:latest
                                             
-                                            # Push backend images with retries
+                                            # Push backend images
                                             echo "Pushing ${BACKEND_IMAGE}:${VERSION}..."
-                                            for i in 1 2 3; do
-                                                docker push ${BACKEND_IMAGE}:${VERSION} && break || echo "Retry $i for backend..."
-                                                sleep 3
-                                            done
+                                            docker push ${BACKEND_IMAGE}:${VERSION}
                                             
                                             echo "Pushing ${BACKEND_IMAGE}:latest..."
-                                            for i in 1 2 3; do
-                                                docker push ${BACKEND_IMAGE}:latest && break || echo "Retry $i for backend latest..."
-                                                sleep 3
-                                            done
+                                            docker push ${BACKEND_IMAGE}:latest
                                             
-                                            # Push frontend images with retries
+                                            # Push frontend images
                                             echo "Pushing ${FRONTEND_IMAGE}:${VERSION}..."
-                                            for i in 1 2 3; do
-                                                docker push ${FRONTEND_IMAGE}:${VERSION} && break || echo "Retry $i for frontend..."
-                                                sleep 3
-                                            done
+                                            docker push ${FRONTEND_IMAGE}:${VERSION}
                                             
                                             echo "Pushing ${FRONTEND_IMAGE}:latest..."
-                                            for i in 1 2 3; do
-                                                docker push ${FRONTEND_IMAGE}:latest && break || echo "Retry $i for frontend latest..."
-                                                sleep 3
-                                            done
+                                            docker push ${FRONTEND_IMAGE}:latest
                                         '''
                                     }
                                 }
