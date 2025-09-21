@@ -1,9 +1,4 @@
-library identifier: 'luxe-jewelry-lib@main',
-        retriever: modernSCM([
-            $class: 'GitSCMSource',
-            remote: 'https://github.com/iDave621/jenkins-shared-library.git'
-            // Using library without additional traits
-        ])
+@Library('luxe-jewelry-lib') _
 
 pipeline {
     agent {
@@ -27,7 +22,14 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus credential ID for authentication
+        // Nexus Docker registry information
+        // Use fixed strings for registry URLs to prevent resolution issues
+        NEXUS_HOST = "192.168.1.117"
+        NEXUS_DOCKER_PORT = "8082"
+        NEXUS_API_PORT = "8081"
+        // Nexus repository name
+        NEXUS_REPO = "docker-hosted"
+        // Jenkins credential ID for Nexus authentication
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -269,41 +271,51 @@ pipeline {
                         script {
                             try {
                                 timeout(time: 5, unit: 'MINUTES') {
-                                    // Push to Docker Hub using shared library function
-                                    echo "Pushing Auth Service to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    echo "Pushing Backend to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${BACKEND_IMAGE}:${VERSION}",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    echo "Pushing Frontend to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${FRONTEND_IMAGE}:${VERSION}",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    // Also push latest tags
-                                    echo "Pushing latest tags to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${AUTH_SERVICE_IMAGE}:latest",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    pushToDockerHub(
-                                        sourceImage: "${BACKEND_IMAGE}:latest",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    pushToDockerHub(
-                                        sourceImage: "${FRONTEND_IMAGE}:latest",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
+                                    withCredentials([usernamePassword(credentialsId: DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                        sh '''
+                                            # Login to Docker Hub
+                                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                                            
+                                            # Push auth service images with retries
+                                            echo "Pushing ${AUTH_SERVICE_IMAGE}:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker push ${AUTH_SERVICE_IMAGE}:${VERSION} && break || echo "Retry $i for auth service..."
+                                                sleep 3
+                                            done
+                                            
+                                            echo "Pushing ${AUTH_SERVICE_IMAGE}:latest..."
+                                            for i in 1 2 3; do
+                                                docker push ${AUTH_SERVICE_IMAGE}:latest && break || echo "Retry $i for auth service latest..."
+                                                sleep 3
+                                            done
+                                            
+                                            # Push backend images with retries
+                                            echo "Pushing ${BACKEND_IMAGE}:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker push ${BACKEND_IMAGE}:${VERSION} && break || echo "Retry $i for backend..."
+                                                sleep 3
+                                            done
+                                            
+                                            echo "Pushing ${BACKEND_IMAGE}:latest..."
+                                            for i in 1 2 3; do
+                                                docker push ${BACKEND_IMAGE}:latest && break || echo "Retry $i for backend latest..."
+                                                sleep 3
+                                            done
+                                            
+                                            # Push frontend images with retries
+                                            echo "Pushing ${FRONTEND_IMAGE}:${VERSION}..."
+                                            for i in 1 2 3; do
+                                                docker push ${FRONTEND_IMAGE}:${VERSION} && break || echo "Retry $i for frontend..."
+                                                sleep 3
+                                            done
+                                            
+                                            echo "Pushing ${FRONTEND_IMAGE}:latest..."
+                                            for i in 1 2 3; do
+                                                docker push ${FRONTEND_IMAGE}:latest && break || echo "Retry $i for frontend latest..."
+                                                sleep 3
+                                            done
+                                        '''
+                                    }
                                 }
                             } catch (Exception e) {
                                 echo "Docker Hub push failed with error: ${e.message}"
@@ -318,15 +330,33 @@ pipeline {
                         script {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
-                                    // Using simplified shared library function for pushing to Nexus
+                                    // Using the shared library function for pushing to Nexus
                                     echo "Pushing Auth Service to Nexus..."
-                                    pushToNexus(sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}")
+                                    pushToNexus(
+                                        registry: "192.168.1.117:8082",
+                                        sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}",
+                                        imageName: "luxe-jewelry-auth-service",
+                                        version: VERSION,
+                                        credentialsId: NEXUS_CRED_ID
+                                    )
                                     
                                     echo "Pushing Backend to Nexus..."
-                                    pushToNexus(sourceImage: "${BACKEND_IMAGE}:${VERSION}")
+                                    pushToNexus(
+                                        registry: "192.168.1.117:8082",
+                                        sourceImage: "${BACKEND_IMAGE}:${VERSION}",
+                                        imageName: "luxe-jewelry-backend",
+                                        version: VERSION,
+                                        credentialsId: NEXUS_CRED_ID
+                                    )
                                     
                                     echo "Pushing Frontend to Nexus..."
-                                    pushToNexus(sourceImage: "${FRONTEND_IMAGE}:${VERSION}")
+                                    pushToNexus(
+                                        registry: "192.168.1.117:8082",
+                                        sourceImage: "${FRONTEND_IMAGE}:${VERSION}",
+                                        imageName: "luxe-jewelry-frontend",
+                                        version: VERSION,
+                                        credentialsId: NEXUS_CRED_ID
+                                    )
                                 }
                             } catch (Exception e) {
                                 echo "Nexus push failed: ${e.message}"
