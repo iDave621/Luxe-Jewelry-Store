@@ -269,41 +269,17 @@ pipeline {
                         script {
                             try {
                                 timeout(time: 5, unit: 'MINUTES') {
-                                    // Push to Docker Hub using shared library function
-                                    echo "Pushing Auth Service to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    echo "Pushing Backend to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${BACKEND_IMAGE}:${VERSION}",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    echo "Pushing Frontend to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${FRONTEND_IMAGE}:${VERSION}",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
+                                    // Push to Docker Hub using simplified shared library function
+                                    echo "Pushing version-tagged images to Docker Hub..."
+                                    pushToDockerHub(sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}")
+                                    pushToDockerHub(sourceImage: "${BACKEND_IMAGE}:${VERSION}")
+                                    pushToDockerHub(sourceImage: "${FRONTEND_IMAGE}:${VERSION}")
                                     
                                     // Also push latest tags
                                     echo "Pushing latest tags to Docker Hub..."
-                                    pushToDockerHub(
-                                        sourceImage: "${AUTH_SERVICE_IMAGE}:latest",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    pushToDockerHub(
-                                        sourceImage: "${BACKEND_IMAGE}:latest",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
-                                    
-                                    pushToDockerHub(
-                                        sourceImage: "${FRONTEND_IMAGE}:latest",
-                                        credentialsId: DOCKER_HUB_CRED_ID
-                                    )
+                                    pushToDockerHub(sourceImage: "${AUTH_SERVICE_IMAGE}:latest")
+                                    pushToDockerHub(sourceImage: "${BACKEND_IMAGE}:latest")
+                                    pushToDockerHub(sourceImage: "${FRONTEND_IMAGE}:latest")
                                 }
                             } catch (Exception e) {
                                 echo "Docker Hub push failed with error: ${e.message}"
