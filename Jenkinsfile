@@ -161,9 +161,25 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Use the defined Docker Hub credential ID
-                        def workingCredId = DOCKER_HUB_CRED_ID
-                        echo "=== Using Docker Hub Credential: ${workingCredId} ==="
+                        // Try multiple common Docker Hub credential IDs
+                        def credentialIds = ['docker-hub', 'dockerhub', 'docker-hub-credentials', 'dockerhub-credentials', 'docker_hub', 'DOCKERHUB_CREDENTIALS']
+                        def workingCredId = null
+                        
+                        echo "=== Finding Docker Hub Credentials ==="
+                        echo "Pipeline job: ${env.JOB_NAME}"
+                        echo "Build number: ${env.BUILD_NUMBER}"
+                        
+                        for (credId in credentialIds) {
+                            if (workingCredId) break
+                            try {
+                                withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
+                                    echo "✓ Found working credential ID: ${credId}"
+                                    workingCredId = credId
+                                }
+                            } catch (Exception e) {
+                                echo "✗ Credential ID '${credId}' not found: ${e.message}"
+                            }
+                        }
                         
                         if (workingCredId) {
                             echo "Using Docker Hub credential ID: ${workingCredId}"
@@ -190,6 +206,14 @@ pipeline {
                                     snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                                 '''
                             }
+                        } else {
+                            echo "❌ No Docker Hub credentials found with common IDs"
+                            echo "Please create a Docker Hub credential in Jenkins with one of these IDs:"
+                            echo "  - dockerhub (recommended)"
+                            echo "  - docker-hub-credentials" 
+                            echo "  - dockerhub-credentials"
+                            echo "Credential type: Username with password"
+                            echo "Skipping Snyk scans for this build."
                         }
                         
                         // Archive scan results (if any were produced)
@@ -245,17 +269,41 @@ pipeline {
                         script {
                             try {
                                 timeout(time: 5, unit: 'MINUTES') {
-                                    // Push to Docker Hub using simplified shared library function
-                                    echo "Pushing version-tagged images to Docker Hub..."
-                                    pushToDockerHub(sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}")
-                                    pushToDockerHub(sourceImage: "${BACKEND_IMAGE}:${VERSION}")
-                                    pushToDockerHub(sourceImage: "${FRONTEND_IMAGE}:${VERSION}")
+                                    // Push to Docker Hub using shared library function
+                                    echo "Pushing Auth Service to Docker Hub..."
+                                    pushToDockerHub(
+                                        sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}",
+                                        credentialsId: DOCKER_HUB_CRED_ID
+                                    )
+                                    
+                                    echo "Pushing Backend to Docker Hub..."
+                                    pushToDockerHub(
+                                        sourceImage: "${BACKEND_IMAGE}:${VERSION}",
+                                        credentialsId: DOCKER_HUB_CRED_ID
+                                    )
+                                    
+                                    echo "Pushing Frontend to Docker Hub..."
+                                    pushToDockerHub(
+                                        sourceImage: "${FRONTEND_IMAGE}:${VERSION}",
+                                        credentialsId: DOCKER_HUB_CRED_ID
+                                    )
                                     
                                     // Also push latest tags
                                     echo "Pushing latest tags to Docker Hub..."
-                                    pushToDockerHub(sourceImage: "${AUTH_SERVICE_IMAGE}:latest")
-                                    pushToDockerHub(sourceImage: "${BACKEND_IMAGE}:latest")
-                                    pushToDockerHub(sourceImage: "${FRONTEND_IMAGE}:latest")
+                                    pushToDockerHub(
+                                        sourceImage: "${AUTH_SERVICE_IMAGE}:latest",
+                                        credentialsId: DOCKER_HUB_CRED_ID
+                                    )
+                                    
+                                    pushToDockerHub(
+                                        sourceImage: "${BACKEND_IMAGE}:latest",
+                                        credentialsId: DOCKER_HUB_CRED_ID
+                                    )
+                                    
+                                    pushToDockerHub(
+                                        sourceImage: "${FRONTEND_IMAGE}:latest",
+                                        credentialsId: DOCKER_HUB_CRED_ID
+                                    )
                                 }
                             } catch (Exception e) {
                                 echo "Docker Hub push failed with error: ${e.message}"
