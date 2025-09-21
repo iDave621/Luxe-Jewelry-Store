@@ -27,14 +27,7 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus Docker registry information
-        // Use fixed strings for registry URLs to prevent resolution issues
-        NEXUS_HOST = "192.168.1.117"
-        NEXUS_DOCKER_PORT = "8082"
-        NEXUS_API_PORT = "8081"
-        // Nexus repository name
-        NEXUS_REPO = "docker-hosted"
-        // Jenkins credential ID for Nexus authentication
+        // Nexus credential ID for authentication
         NEXUS_CRED_ID = "Nexus-Docker"
     }
     
@@ -325,33 +318,15 @@ pipeline {
                         script {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
-                                    // Using the shared library function for pushing to Nexus
+                                    // Using simplified shared library function for pushing to Nexus
                                     echo "Pushing Auth Service to Nexus..."
-                                    pushToNexus(
-                                        registry: "192.168.1.117:8082",
-                                        sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}",
-                                        imageName: "luxe-jewelry-auth-service",
-                                        version: VERSION,
-                                        credentialsId: NEXUS_CRED_ID
-                                    )
+                                    pushToNexus(sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}")
                                     
                                     echo "Pushing Backend to Nexus..."
-                                    pushToNexus(
-                                        registry: "192.168.1.117:8082",
-                                        sourceImage: "${BACKEND_IMAGE}:${VERSION}",
-                                        imageName: "luxe-jewelry-backend",
-                                        version: VERSION,
-                                        credentialsId: NEXUS_CRED_ID
-                                    )
+                                    pushToNexus(sourceImage: "${BACKEND_IMAGE}:${VERSION}")
                                     
                                     echo "Pushing Frontend to Nexus..."
-                                    pushToNexus(
-                                        registry: "192.168.1.117:8082",
-                                        sourceImage: "${FRONTEND_IMAGE}:${VERSION}",
-                                        imageName: "luxe-jewelry-frontend",
-                                        version: VERSION,
-                                        credentialsId: NEXUS_CRED_ID
-                                    )
+                                    pushToNexus(sourceImage: "${FRONTEND_IMAGE}:${VERSION}")
                                 }
                             } catch (Exception e) {
                                 echo "Nexus push failed: ${e.message}"
