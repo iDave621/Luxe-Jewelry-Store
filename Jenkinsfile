@@ -1,5 +1,3 @@
-@Library('luxe-jewelry-lib') _
-
 pipeline {
     agent {
         node {
@@ -270,32 +268,63 @@ pipeline {
                     steps {
                         script {
                             try {
-                                timeout(time: 5, unit: 'MINUTES') {
-                                    withCredentials([usernamePassword(credentialsId: DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                timeout(time: 10, unit: 'MINUTES') {
+                                    // Using Jenkins credentials for secure Docker Hub login
+                                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                        // Print username (but not password) for debugging
+                                        sh 'echo "Using Docker Hub username: $DOCKER_USERNAME"'
+                                        
+                                        // Force Docker to log out first to ensure clean login
+                                        sh 'docker logout'
+                                        
+                                        // Explicitly login to Docker Hub with full URL
+                                        sh 'echo $DOCKER_PASSWORD | docker login https://index.docker.io/v1/ -u $DOCKER_USERNAME --password-stdin'
+                                        
+                                        // Verify we're logged in and can access the repositories
+                                        sh 'docker info | grep "Username"'
+                                        
+                                        // Push with detailed error messages
                                         sh '''
-                                            # Login to Docker Hub
-                                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                                            echo "Pushing to Docker Hub as $DOCKER_USERNAME"
                                             
-                                            # Push auth service images
+                                            # Push auth-service images with retries
                                             echo "Pushing ${AUTH_SERVICE_IMAGE}:${VERSION}..."
-                                            docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
+                                            for i in 1 2 3; do
+                                                docker push ${AUTH_SERVICE_IMAGE}:${VERSION} && break || echo "Retry $i for auth service..."
+                                                sleep 3
+                                            done
                                             
                                             echo "Pushing ${AUTH_SERVICE_IMAGE}:latest..."
-                                            docker push ${AUTH_SERVICE_IMAGE}:latest
+                                            for i in 1 2 3; do
+                                                docker push ${AUTH_SERVICE_IMAGE}:latest && break || echo "Retry $i for auth service latest..."
+                                                sleep 3
+                                            done
                                             
-                                            # Push backend images
+                                            # Push backend images with retries
                                             echo "Pushing ${BACKEND_IMAGE}:${VERSION}..."
-                                            docker push ${BACKEND_IMAGE}:${VERSION}
+                                            for i in 1 2 3; do
+                                                docker push ${BACKEND_IMAGE}:${VERSION} && break || echo "Retry $i for backend..."
+                                                sleep 3
+                                            done
                                             
                                             echo "Pushing ${BACKEND_IMAGE}:latest..."
-                                            docker push ${BACKEND_IMAGE}:latest
+                                            for i in 1 2 3; do
+                                                docker push ${BACKEND_IMAGE}:latest && break || echo "Retry $i for backend latest..."
+                                                sleep 3
+                                            done
                                             
-                                            # Push frontend images
+                                            # Push frontend images with retries
                                             echo "Pushing ${FRONTEND_IMAGE}:${VERSION}..."
-                                            docker push ${FRONTEND_IMAGE}:${VERSION}
+                                            for i in 1 2 3; do
+                                                docker push ${FRONTEND_IMAGE}:${VERSION} && break || echo "Retry $i for frontend..."
+                                                sleep 3
+                                            done
                                             
                                             echo "Pushing ${FRONTEND_IMAGE}:latest..."
-                                            docker push ${FRONTEND_IMAGE}:latest
+                                            for i in 1 2 3; do
+                                                docker push ${FRONTEND_IMAGE}:latest && break || echo "Retry $i for frontend latest..."
+                                                sleep 3
+                                            done
                                         '''
                                     }
                                 }
@@ -312,33 +341,51 @@ pipeline {
                         script {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
-                                    // Using the shared library function for pushing to Nexus
-                                    echo "Pushing Auth Service to Nexus..."
-                                    pushToNexus(
-                                        registry: "192.168.1.117:8082",
-                                        sourceImage: "${AUTH_SERVICE_IMAGE}:${VERSION}",
-                                        imageName: "luxe-jewelry-auth-service",
-                                        version: VERSION,
-                                        credentialsId: NEXUS_CRED_ID
-                                    )
-                                    
-                                    echo "Pushing Backend to Nexus..."
-                                    pushToNexus(
-                                        registry: "192.168.1.117:8082",
-                                        sourceImage: "${BACKEND_IMAGE}:${VERSION}",
-                                        imageName: "luxe-jewelry-backend",
-                                        version: VERSION,
-                                        credentialsId: NEXUS_CRED_ID
-                                    )
-                                    
-                                    echo "Pushing Frontend to Nexus..."
-                                    pushToNexus(
-                                        registry: "192.168.1.117:8082",
-                                        sourceImage: "${FRONTEND_IMAGE}:${VERSION}",
-                                        imageName: "luxe-jewelry-frontend",
-                                        version: VERSION,
-                                        credentialsId: NEXUS_CRED_ID
-                                    )
+                                    withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                                        // Use Docker commands with Jenkins-nexus credentials and insecure registry
+                                        sh '''
+                                            echo "==== PUSHING DOCKER IMAGES TO NEXUS REGISTRY ===="
+                                            
+                                            # Set Nexus registry URL directly in the script to avoid resolution issues
+                                            NEXUS_REGISTRY="192.168.1.117:8082"
+                                            
+                                            # Configure Docker to use insecure registry
+                                            echo "\nConfiguring Docker with insecure registry and credentials..."
+                                            mkdir -p ~/.docker
+                                            echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}}, "insecure-registries": ["'${NEXUS_REGISTRY}'"] }' > ~/.docker/config.json
+                                            
+                                            # Set environment variables for Docker
+                                            export DOCKER_TLS_VERIFY=0
+                                            
+                                            # Tag the images for Nexus
+                                            echo "\nTagging Docker images for Nexus registry..."
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                            
+                                            # Login to Nexus registry
+                                            echo "\nLogging in to Nexus Docker registry..."
+                                            echo ${NEXUS_PASSWORD} | docker login -u ${NEXUS_USERNAME} --password-stdin ${NEXUS_REGISTRY}
+                                            
+                                            # Push images to Nexus registry
+                                            echo "\nPushing images to Nexus registry..."
+                                            
+                                            echo "Pushing auth-service image..."
+                                            docker push ${NEXUS_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                            
+                                            echo "Pushing backend image..."
+                                            docker push ${NEXUS_REGISTRY}/luxe-jewelry-backend:${VERSION}
+                                            
+                                            echo "Pushing frontend image..."
+                                            docker push ${NEXUS_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                            
+                                            # Verify the push was successful
+                                            echo "\nVerifying Nexus repository contents..."
+                                            curl -k -s -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" -X GET https://${NEXUS_REGISTRY}/v2/_catalog
+                                            
+                                            echo "\n==== NEXUS PUSH OPERATIONS COMPLETED ===="
+                                        '''
+                                    }
                                 }
                             } catch (Exception e) {
                                 echo "Nexus push failed: ${e.message}"
