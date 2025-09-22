@@ -1,3 +1,6 @@
+// Load shared library
+@Library('jenkins-shared-library-temp') _
+
 pipeline {
     agent {
         node {
@@ -70,6 +73,7 @@ pipeline {
                 stage('Unit Tests') {
                     steps {
                         script {
+                            // First run the old test approach
                             sh '''
                                 # Determine Python command
                                 if command -v python3 &> /dev/null; then
@@ -81,11 +85,18 @@ pipeline {
                                 # Run tests and produce JUnit XML
                                 $TEST_PY -m pytest --junitxml results.xml tests/*.py || true
                             '''
+                            
+                            // Now run tests from the shared library
+                            echo "Running tests from shared library..."
+                            runPythonTests([
+                                resultPath: 'shared-test-results',
+                                testCommand: 'pytest'
+                            ])
                         }
                     }
                     post {
                         always {
-                            junit allowEmptyResults: true, testResults: 'results.xml'
+                            junit allowEmptyResults: true, testResults: 'results.xml, shared-test-results/*.xml'
                         }
                     }
                 }
