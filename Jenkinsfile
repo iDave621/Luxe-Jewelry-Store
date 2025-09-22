@@ -23,11 +23,12 @@ pipeline {
         // Nexus Docker registry information
         // Use fixed strings for registry URLs to prevent resolution issues
         NEXUS_HOST = "localhost"
-        NEXUS_API_PORT = "8081"  // Main port for Nexus UI and Docker registry with path
-        // Registry URL with full repository path
-        NEXUS_DOCKER_REGISTRY = "${NEXUS_HOST}:${NEXUS_API_PORT}/repository/docker-nexus"
-        // Full Nexus Docker login URL with repository path
-        NEXUS_DOCKER_LOGIN_URL = "http://${NEXUS_HOST}:${NEXUS_API_PORT}/repository/docker-nexus/"        
+        NEXUS_API_PORT = "8081"  // Main port for Nexus UI
+        NEXUS_DOCKER_PORT = "8082" // Port dedicated for Docker registry operations
+        // Registry URL for Docker operations
+        NEXUS_DOCKER_REGISTRY = "${NEXUS_HOST}:${NEXUS_DOCKER_PORT}"
+        // Login URL for Docker
+        NEXUS_DOCKER_LOGIN_URL = "http://${NEXUS_HOST}:${NEXUS_DOCKER_PORT}"        
         // Nexus repository name
         NEXUS_REPO = "docker-nexus"
         // Jenkins credential ID for Nexus authentication
