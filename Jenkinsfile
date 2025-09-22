@@ -1,4 +1,4 @@
-// Load shared library
+// Load shared library - updated reference
 @Library('jenkins-shared-library-temp') _
 
 pipeline {
