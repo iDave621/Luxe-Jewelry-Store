@@ -73,30 +73,17 @@ pipeline {
                 stage('Unit Tests') {
                     steps {
                         script {
-                            // First run the old test approach
-                            sh '''
-                                # Determine Python command
-                                if command -v python3 &> /dev/null; then
-                                  python3 -m pip install --upgrade pip --break-system-packages || true
-                                  python3 -m pip install -r requirements-dev.txt --break-system-packages
-                                  TEST_PY="python3"
-                                fi
-
-                                # Run tests and produce JUnit XML
-                                $TEST_PY -m pytest --junitxml results.xml tests/*.py || true
-                            '''
-                            
-                            // Now run tests from the shared library
+                            // Run tests from the shared library
                             echo "Running tests from shared library..."
                             runPythonTests([
-                                resultPath: 'shared-test-results',
+                                resultPath: 'test-results',
                                 testCommand: 'pytest'
                             ])
                         }
                     }
                     post {
                         always {
-                            junit allowEmptyResults: true, testResults: 'results.xml, shared-test-results/*.xml'
+                            junit allowEmptyResults: true, testResults: 'test-results/*.xml'
                         }
                     }
                 }
