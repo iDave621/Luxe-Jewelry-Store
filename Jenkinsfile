@@ -23,9 +23,9 @@ pipeline {
         // Nexus Docker registry information
         // Use fixed strings for registry URLs to prevent resolution issues
         NEXUS_HOST = "localhost"
-        NEXUS_DOCKER_PORT = "8082"
-        NEXUS_API_PORT = "8081"
-        NEXUS_API_PORT_ALT = "8083"
+        NEXUS_API_PORT = "8081"  // Main port for Nexus UI and Docker registry with path
+        // Full Nexus Docker registry URL with repository path
+        NEXUS_DOCKER_REGISTRY = "${NEXUS_HOST}:${NEXUS_API_PORT}/repository/docker-nexus"        
         // Nexus repository name
         NEXUS_REPO = "docker-nexus"
         // Jenkins credential ID for Nexus authentication
@@ -330,7 +330,7 @@ pipeline {
                                             echo "==== PUSHING DOCKER IMAGES TO NEXUS REGISTRY ===="
                                             
                                             # Set Nexus registry URL directly in the script to avoid resolution issues
-                                            NEXUS_REGISTRY="localhost:8082"
+                                            NEXUS_REGISTRY="localhost:8081/repository/docker-nexus"
                                             
                                             # Configure Docker to use insecure registry
                                             echo '\n\nConfiguring Docker with insecure registry and credentials...'
