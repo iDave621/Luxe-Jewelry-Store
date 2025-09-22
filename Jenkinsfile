@@ -329,7 +329,7 @@ pipeline {
                                         // Alternative approach - try just ONE image at a time
                                         echo "Trying a focused approach with only the auth service first"
                                         
-                                        sh """
+                                        sh '''
                                             # Configure Docker daemon for insecure registries
                                             mkdir -p ~/.docker
                                             cat > ~/.docker/config.json << EOF
@@ -347,30 +347,41 @@ pipeline {
                                             
                                             # Login to Nexus - with retry
                                             for attempt in 1 2 3; do
-                                                echo "Login attempt \$attempt..."
-                                                echo ${NEXUS_PASSWORD} | docker login http://localhost:8082 -u ${NEXUS_USERNAME} --password-stdin && break
+                                                echo "Login attempt $attempt..."
+                                                echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin && break
                                                 sleep 2
                                             done
                                             
                                             # Push just auth service
                                             echo "Pushing auth service image to Nexus..."
                                             docker push localhost:8082/luxe-jewelry-auth-service:${VERSION}
-                                        """
+                                        '''
                                         
                                         echo "First service pushed successfully, proceeding with others"
                                         
-                                        // Now try the other services one at a time
-                                        sh """
-                                            # Tag and push backend separately
+                                        // Now try the backend separately with fresh login
+                                        sh '''
+                                            # Force logout and re-login before pushing backend
+                                            docker logout || true
+                                            echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin
+                                            
+                                            # Tag and push backend with fresh credentials
                                             docker tag ${BACKEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-backend:${VERSION}
                                             echo "Pushing backend image to Nexus..."
                                             docker push localhost:8082/luxe-jewelry-backend:${VERSION} || true
+                                        '''
+                                        
+                                        // Finally try the frontend separately with fresh login
+                                        sh '''
+                                            # Force logout and re-login before pushing frontend
+                                            docker logout || true
+                                            echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin
                                             
-                                            # Tag and push frontend separately
+                                            # Tag and push frontend with fresh credentials
                                             docker tag ${FRONTEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-frontend:${VERSION}
                                             echo "Pushing frontend image to Nexus..."
                                             docker push localhost:8082/luxe-jewelry-frontend:${VERSION} || true
-                                        """
+                                        '''
                                     }
                                 }
                             } catch (Exception e) {
