@@ -382,6 +382,18 @@ pipeline {
                                             echo "Pushing frontend image to Nexus..."
                                             docker push localhost:8082/luxe-jewelry-frontend:${VERSION} || true
                                         '''
+                                        
+                                        // Finally push auth service with standard version
+                                        sh '''
+                                            # Force logout and re-login before pushing auth service
+                                            docker logout || true
+                                            echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin
+                                            
+                                            # Tag and push auth service with fresh credentials
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-auth-service:${VERSION}
+                                            echo "Pushing auth service image to Nexus..."
+                                            docker push localhost:8082/luxe-jewelry-auth-service:${VERSION} || true
+                                        '''
                                     }
                                 }
                             } catch (Exception e) {
