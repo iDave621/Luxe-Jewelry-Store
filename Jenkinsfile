@@ -328,43 +328,37 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Simple, clean approach to tag and push images to Nexus
+                                        // Simple approach - only tag with version
                                         sh """
-                                            # Tag auth service
+                                            # Tag auth service with version only
                                             echo "Tagging ${AUTH_SERVICE_IMAGE}:${VERSION} for Nexus..."
                                             docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
-                                            docker tag ${AUTH_SERVICE_IMAGE}:latest ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:latest
                                             
-                                            # Tag backend
+                                            # Tag backend with version only
                                             echo "Tagging ${BACKEND_IMAGE}:${VERSION} for Nexus..."
                                             docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
-                                            docker tag ${BACKEND_IMAGE}:latest ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:latest
                                             
-                                            # Tag frontend
+                                            # Tag frontend with version only
                                             echo "Tagging ${FRONTEND_IMAGE}:${VERSION} for Nexus..."
                                             docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
-                                            docker tag ${FRONTEND_IMAGE}:latest ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:latest
                                         """
                                         
                                         // Login to Nexus with proper URL format
                                         sh "echo ${NEXUS_PASSWORD} | docker login ${NEXUS_DOCKER_LOGIN_URL} -u ${NEXUS_USERNAME} --password-stdin"
                                         
-                                        // Push all images in sequence
+                                        // Push all images in sequence - only version tags, not latest
                                         sh """
-                                            # Push auth service images
-                                            echo "Pushing auth service images to Nexus..."
+                                            # Push auth service image (version only)
+                                            echo "Pushing auth service image to Nexus..."
                                             docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
-                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:latest
                                             
-                                            # Push backend images
-                                            echo "Pushing backend images to Nexus..."
+                                            # Push backend image (version only)
+                                            echo "Pushing backend image to Nexus..."
                                             docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
-                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:latest
                                             
-                                            # Push frontend images
-                                            echo "Pushing frontend images to Nexus..."
+                                            # Push frontend image (version only)
+                                            echo "Pushing frontend image to Nexus..."
                                             docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
-                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:latest
                                         """
                                     }
                                 }
