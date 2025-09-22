@@ -24,8 +24,8 @@ pipeline {
         // Use fixed strings for registry URLs to prevent resolution issues
         NEXUS_HOST = "localhost"
         NEXUS_API_PORT = "8081"  // Main port for Nexus UI and Docker registry with path
-        // Simple registry URL for Docker push/pull operations
-        NEXUS_DOCKER_REGISTRY = "${NEXUS_HOST}:${NEXUS_API_PORT}"
+        // Registry URL with full repository path
+        NEXUS_DOCKER_REGISTRY = "${NEXUS_HOST}:${NEXUS_API_PORT}/repository/docker-nexus"
         // Full Nexus Docker login URL with repository path
         NEXUS_DOCKER_LOGIN_URL = "http://${NEXUS_HOST}:${NEXUS_API_PORT}/repository/docker-nexus/"        
         // Nexus repository name
