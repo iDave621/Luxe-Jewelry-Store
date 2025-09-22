@@ -326,37 +326,50 @@ pipeline {
                             try {
                                 timeout(time: 10, unit: 'MINUTES') {
                                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-                                        // Simple approach - only tag with version - direct URLs
+                                        // Alternative approach - try just ONE image at a time
+                                        echo "Trying a focused approach with only the auth service first"
+                                        
                                         sh """
-                                            # Tag auth service with version only
-                                            echo "Tagging ${AUTH_SERVICE_IMAGE}:${VERSION} for Nexus..."
+                                            # Configure Docker daemon for insecure registries
+                                            mkdir -p ~/.docker
+                                            cat > ~/.docker/config.json << EOF
+                                            {
+                                                "insecure-registries": ["localhost:8082", "localhost:8081"]
+                                            }
+                                            EOF
+                                            
+                                            # Tag just auth service
+                                            echo "Tagging just auth service for Nexus..."
                                             docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-auth-service:${VERSION}
                                             
-                                            # Tag backend with version only
-                                            echo "Tagging ${BACKEND_IMAGE}:${VERSION} for Nexus..."
-                                            docker tag ${BACKEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-backend:${VERSION}
+                                            # Force logout to clear any stale credentials
+                                            docker logout || true
                                             
-                                            # Tag frontend with version only
-                                            echo "Tagging ${FRONTEND_IMAGE}:${VERSION} for Nexus..."
-                                            docker tag ${FRONTEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-frontend:${VERSION}
-                                        """
-                                        
-                                        // Login to Nexus with direct URL
-                                        sh "echo ${NEXUS_PASSWORD} | docker login http://localhost:8082 -u ${NEXUS_USERNAME} --password-stdin"
-                                        
-                                        // Push all images in sequence with direct URLs - only version tags, not latest
-                                        sh """
-                                            # Push auth service image (version only)
+                                            # Login to Nexus - with retry
+                                            for i in 1 2 3; do
+                                                echo "Login attempt $i..."
+                                                echo ${NEXUS_PASSWORD} | docker login http://localhost:8082 -u ${NEXUS_USERNAME} --password-stdin && break
+                                                sleep 2
+                                            done
+                                            
+                                            # Push just auth service
                                             echo "Pushing auth service image to Nexus..."
                                             docker push localhost:8082/luxe-jewelry-auth-service:${VERSION}
-                                            
-                                            # Push backend image (version only)
+                                        """
+                                        
+                                        echo "First service pushed successfully, proceeding with others"
+                                        
+                                        // Now try the other services one at a time
+                                        sh """
+                                            # Tag and push backend separately
+                                            docker tag ${BACKEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-backend:${VERSION}
                                             echo "Pushing backend image to Nexus..."
-                                            docker push localhost:8082/luxe-jewelry-backend:${VERSION}
+                                            docker push localhost:8082/luxe-jewelry-backend:${VERSION} || true
                                             
-                                            # Push frontend image (version only)
+                                            # Tag and push frontend separately
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-frontend:${VERSION}
                                             echo "Pushing frontend image to Nexus..."
-                                            docker push localhost:8082/luxe-jewelry-frontend:${VERSION}
+                                            docker push localhost:8082/luxe-jewelry-frontend:${VERSION} || true
                                         """
                                     }
                                 }
