@@ -346,8 +346,8 @@ pipeline {
                                             docker logout || true
                                             
                                             # Login to Nexus - with retry
-                                            for i in 1 2 3; do
-                                                echo "Login attempt $i..."
+                                            for attempt in 1 2 3; do
+                                                echo "Login attempt \$attempt..."
                                                 echo ${NEXUS_PASSWORD} | docker login http://localhost:8082 -u ${NEXUS_USERNAME} --password-stdin && break
                                                 sleep 2
                                             done
