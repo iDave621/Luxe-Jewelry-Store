@@ -25,6 +25,7 @@ pipeline {
         NEXUS_HOST = "localhost"
         NEXUS_DOCKER_PORT = "8082"
         NEXUS_API_PORT = "8081"
+        NEXUS_API_PORT_ALT = "8083"
         // Nexus repository name
         NEXUS_REPO = "docker-nexus"
         // Jenkins credential ID for Nexus authentication
@@ -332,9 +333,9 @@ pipeline {
                                             NEXUS_REGISTRY="localhost:8082"
                                             
                                             # Configure Docker to use insecure registry
-                                            echo "\nConfiguring Docker with insecure registry and credentials..."
+                                            echo '\n\nConfiguring Docker with insecure registry and credentials...'
                                             mkdir -p ~/.docker
-                                            echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}}, "insecure-registries": ["'${NEXUS_REGISTRY}'"] }' > ~/.docker/config.json
+                                            echo '{"auths":{"'${NEXUS_REGISTRY}'":{"auth":"'$(echo -n ${NEXUS_USERNAME}:${NEXUS_PASSWORD} | base64 -w 0)'"}}, "insecure-registries": ["'${NEXUS_REGISTRY}'", "localhost:8081", "localhost:8082", "localhost:8083"] }' > ~/.docker/config.json
                                             
                                             # Set environment variables for Docker
                                             export DOCKER_TLS_VERIFY=0
