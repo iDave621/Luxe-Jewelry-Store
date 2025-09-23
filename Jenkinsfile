@@ -1,4 +1,4 @@
-// Load shared library - updated reference
+// Load shared library - fixed TEST_PY variable scope
 @Library('jenkins-shared-library-temp') _
 
 pipeline {
