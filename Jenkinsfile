@@ -283,26 +283,26 @@ pipeline {
                                         sh '''
                                             echo "Pushing to Docker Hub as $DOCKER_USERNAME"
                                             
-                                            # Push auth-service images
+                                            # Push auth-service images - version tag is critical
                                             echo "Pushing ${AUTH_SERVICE_IMAGE}:${VERSION}..."
                                             docker push ${AUTH_SERVICE_IMAGE}:${VERSION}
                                             
-                                            echo "Pushing ${AUTH_SERVICE_IMAGE}:latest..."
-                                            docker push ${AUTH_SERVICE_IMAGE}:latest
+                                            echo "Pushing ${AUTH_SERVICE_IMAGE}:latest... (optional)"
+                                            docker push ${AUTH_SERVICE_IMAGE}:latest || echo "Skipping latest tag for auth-service"
                                             
-                                            # Push backend images
+                                            # Push backend images - version tag is critical
                                             echo "Pushing ${BACKEND_IMAGE}:${VERSION}..."
                                             docker push ${BACKEND_IMAGE}:${VERSION}
                                             
-                                            echo "Pushing ${BACKEND_IMAGE}:latest..."
-                                            docker push ${BACKEND_IMAGE}:latest
+                                            echo "Pushing ${BACKEND_IMAGE}:latest... (optional)"
+                                            docker push ${BACKEND_IMAGE}:latest || echo "Skipping latest tag for backend"
                                             
-                                            # Push frontend images
+                                            # Push frontend images - version tag is critical
                                             echo "Pushing ${FRONTEND_IMAGE}:${VERSION}..."
                                             docker push ${FRONTEND_IMAGE}:${VERSION}
                                             
-                                            echo "Pushing ${FRONTEND_IMAGE}:latest..."
-                                            docker push ${FRONTEND_IMAGE}:latest
+                                            echo "Pushing ${FRONTEND_IMAGE}:latest... (optional)"
+                                            docker push ${FRONTEND_IMAGE}:latest || echo "Skipping latest tag for frontend"
                                         '''
                                     }
                                 }
