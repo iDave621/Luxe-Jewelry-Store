@@ -176,15 +176,15 @@ pipeline {
                                     export SNYK_TOKEN="$SNYK_TOKEN"
                                     echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
                                     
-                                    # Authenticated registry-based scanning
-                                    echo "Scanning Auth Service (remote, authenticated): ${AUTH_SERVICE_IMAGE}:${VERSION}"
-                                    snyk container test --remote "${AUTH_SERVICE_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
+                                    # Scan locally built images instead of remote ones
+                                    echo "Scanning Auth Service (local): ${AUTH_SERVICE_IMAGE}:${VERSION}"
+                                    snyk container test "${AUTH_SERVICE_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/auth-scan-results.json || true
                                     
-                                    echo "Scanning Backend (remote, authenticated): ${BACKEND_IMAGE}:${VERSION}"
-                                    snyk container test --remote "${BACKEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
+                                    echo "Scanning Backend (local): ${BACKEND_IMAGE}:${VERSION}"
+                                    snyk container test "${BACKEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/backend-scan-results.json || true
                                     
-                                    echo "Scanning Frontend (remote, authenticated): ${FRONTEND_IMAGE}:${VERSION}"
-                                    snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
+                                    echo "Scanning Frontend (local): ${FRONTEND_IMAGE}:${VERSION}"
+                                    snyk container test "${FRONTEND_IMAGE}:${VERSION}" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                                 '''
                             }
                         
