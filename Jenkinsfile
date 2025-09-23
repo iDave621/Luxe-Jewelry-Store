@@ -1,4 +1,4 @@
-// Load shared library - fixed PYTHON_CMD variable scope with separated file writing
+// Load shared library
 @Library('jenkins-shared-library-temp') _
 
 pipeline {
@@ -23,7 +23,6 @@ pipeline {
         VERSION = "1.0.${BUILD_NUMBER}"
         DOCKER_HUB_CRED_ID = "docker-hub"
         
-        // Nexus Docker registry information - Simple direct URLs
         // Nexus UI URL
         NEXUS_UI_URL = "http://localhost:8081"
         // URL for tagging and pushing Docker images
@@ -161,31 +160,13 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Try multiple common Docker Hub credential IDs
-                        def credentialIds = ['docker-hub', 'dockerhub', 'docker-hub-credentials', 'dockerhub-credentials', 'docker_hub', 'DOCKERHUB_CREDENTIALS']
-                        def workingCredId = null
+                        // Directly use the known credential ID
+                        echo "=== Using Docker Hub Credentials ==="
+                        echo "Using Docker Hub credential ID: ${env.DOCKER_HUB_CRED_ID}"
                         
-                        echo "=== Finding Docker Hub Credentials ==="
-                        echo "Pipeline job: ${env.JOB_NAME}"
-                        echo "Build number: ${env.BUILD_NUMBER}"
-                        
-                        for (credId in credentialIds) {
-                            if (workingCredId) break
-                            try {
-                                withCredentials([usernamePassword(credentialsId: credId, passwordVariable: 'TEST_PASS', usernameVariable: 'TEST_USER')]) {
-                                    echo "✓ Found working credential ID: ${credId}"
-                                    workingCredId = credId
-                                }
-                            } catch (Exception e) {
-                                echo "✗ Credential ID '${credId}' not found: ${e.message}"
-                            }
-                        }
-                        
-                        if (workingCredId) {
-                            echo "Using Docker Hub credential ID: ${workingCredId}"
-                            withCredentials([
-                                string(credentialsId: 'snky', variable: 'SNYK_TOKEN'),
-                                usernamePassword(credentialsId: workingCredId, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')
+                        withCredentials([
+                            string(credentialsId: 'snky', variable: 'SNYK_TOKEN'),
+                            usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')
                             ]) {
                                 sh '''
                                     set -eu
@@ -206,15 +187,6 @@ pipeline {
                                     snyk container test --remote "${FRONTEND_IMAGE}:${VERSION}" --username "$DOCKER_USERNAME" --password "$DOCKER_PASSWORD" --severity-threshold=high --json-file-output=snyk-results/frontend-scan-results.json || true
                                 '''
                             }
-                        } else {
-                            echo "❌ No Docker Hub credentials found with common IDs"
-                            echo "Please create a Docker Hub credential in Jenkins with one of these IDs:"
-                            echo "  - dockerhub (recommended)"
-                            echo "  - docker-hub-credentials" 
-                            echo "  - dockerhub-credentials"
-                            echo "Credential type: Username with password"
-                            echo "Skipping Snyk scans for this build."
-                        }
                         
                         // Archive scan results (if any were produced)
                         archiveArtifacts artifacts: 'snyk-results/*.json', allowEmptyArchive: true
