@@ -1,4 +1,4 @@
-// Load shared library - fixed TEST_PY variable scope
+// Load shared library - fixed PYTHON_CMD variable scope with separated file writing
 @Library('jenkins-shared-library-temp') _
 
 pipeline {
