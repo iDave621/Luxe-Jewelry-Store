@@ -407,17 +407,41 @@ pipeline {
         stage('Deploy App') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
-                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                        // Login to Nexus Docker registry
+                        sh "echo \"${NEXUS_PASSWORD}\" | docker login ${env.NEXUS_DOCKER_LOGIN_URL} -u \"${NEXUS_USERNAME}\" --password-stdin"
+                        
+                        // Deploy using the Nexus images
                         sh '''
-                            # Deploy using docker-compose
+                            # Stop any existing containers
                             docker-compose down || true
+                            
+                            # Create a temporary docker-compose override file to use Nexus images
+                            cat > docker-compose.override.yml << EOF
+                            version: '3.8'
+                            
+                            services:
+                              auth-service:
+                                image: localhost:8082/luxe-jewelry-auth-service:${VERSION}
+                                build: {}
+                              
+                              backend:
+                                image: localhost:8082/luxe-jewelry-backend:${VERSION}
+                                build: {}
+                              
+                              frontend:
+                                image: localhost:8082/luxe-jewelry-frontend:${VERSION}
+                                build: {}
+                            EOF
+                            
+                            # Start containers with Nexus images
                             docker-compose up -d
                             
                             # Give containers a moment to start and verify they're running
                             sleep 10
                             docker ps
                             
-                            echo "Deployment complete - All 3 services running"
+                            echo "Deployment complete - All 3 services running with version ${VERSION}"
                         '''
                     }
                 }
