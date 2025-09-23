@@ -181,7 +181,7 @@ Luxe-Jewelry-Store/
 ├──────────────────────────┤     ├─────────────────────────────────┤
 │ • docker-hub                │     │ • JWT_SECRET_KEY                 │
 │   Docker Hub access for       │     │   Auth service token signing      │
-│   pushing to vixx3 org        │     │                                  │
+│   pushing to iDave621 org     │     │                                  │
 │                              │     │ • AUTH_SERVICE_URL               │
 │ • snky                      │     │   Backend to auth communication   │
 │   Snyk API token for          │     │                                  │
