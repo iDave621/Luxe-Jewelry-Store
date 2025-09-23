@@ -414,9 +414,11 @@ pipeline {
                         // Deploy using the Nexus images
                         sh '''
                             # Stop any existing containers
+                            echo "Stopping any existing containers..."
                             docker-compose down || true
                             
-                            # Create a temporary docker-compose override file to use Nexus images
+                            # Create a simple docker-compose override file for Nexus images only
+                            echo "Creating override file for Nexus images..."
                             cat > docker-compose.override.yml << EOF
                             version: '3.8'
                             
@@ -434,8 +436,15 @@ pipeline {
                                 build: {}
                             EOF
                             
-                            # Start containers with Nexus images
+                            # Start containers using the override file with the base compose file
+                            echo "Starting containers with Nexus images..."
                             docker-compose up -d
+                            
+                            # Check if containers actually started
+                            echo "Verifying containers started..."
+                            sleep 5
+                            CONTAINER_COUNT=$(docker ps --filter "name=luxe" --filter "status=running" | wc -l)
+                            echo "Found ${CONTAINER_COUNT} containers running"
                             
                             # Give containers a moment to start and verify they're running
                             sleep 10
