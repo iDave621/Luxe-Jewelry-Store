@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: luxe-jewelry
+  labels:
+    app: luxe-jewelry-store
+    environment: production

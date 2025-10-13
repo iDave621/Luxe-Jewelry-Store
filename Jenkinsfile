@@ -400,7 +400,138 @@ pipeline {
             }
         }
         
-        stage('Deploy App') {
+        stage('Prepare Images for Kubernetes') {
+            steps {
+                script {
+                    try {
+                        timeout(time: 10, unit: 'MINUTES') {
+                            withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                sh '''
+                                    echo "=== Preparing images for Kubernetes deployment ==="
+                                    echo "Tagging images for iDave621 registry..."
+                                    
+                                    # Tag images for Kubernetes to pull from idave621 registry
+                                    docker tag ${AUTH_SERVICE_IMAGE}:latest idave621/luxe-jewelry-auth-service:latest
+                                    docker tag ${BACKEND_IMAGE}:latest idave621/luxe-jewelry-backend:latest
+                                    docker tag ${FRONTEND_IMAGE}:latest idave621/luxe-jewelry-frontend:latest
+                                    
+                                    echo "Logging into Docker Hub for Kubernetes images..."
+                                    echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                                    
+                                    echo "Pushing images to idave621 registry for Kubernetes..."
+                                    docker push idave621/luxe-jewelry-auth-service:latest
+                                    docker push idave621/luxe-jewelry-backend:latest
+                                    docker push idave621/luxe-jewelry-frontend:latest
+                                    
+                                    echo "Images ready for Kubernetes deployment!"
+                                '''
+                            }
+                        }
+                    } catch (Exception e) {
+                        echo "Failed to prepare Kubernetes images: ${e.message}"
+                        echo "This may affect Kubernetes deployment"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    timeout(time: 10, unit: 'MINUTES') {
+                        withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
+                            sh '''
+                                echo "=== Deploying to Kubernetes ==="
+                                
+                                # Check if kubectl is available
+                                if ! command -v kubectl &> /dev/null; then
+                                    echo "ERROR: kubectl is not installed or not in PATH"
+                                    exit 1
+                                fi
+                                
+                                # Check if Minikube is running
+                                if ! kubectl cluster-info &> /dev/null; then
+                                    echo "ERROR: Kubernetes cluster is not accessible"
+                                    echo "Please start Minikube: minikube start"
+                                    exit 1
+                                fi
+                                
+                                echo "Kubernetes cluster is accessible"
+                                kubectl cluster-info
+                                
+                                # Apply Kubernetes manifests
+                                echo "Applying Kubernetes manifests..."
+                                kubectl apply -f k8s/base/namespace.yaml
+                                kubectl apply -f k8s/base/configmap.yaml
+                                
+                                # Create secret with JWT key from Jenkins credentials
+                                echo "Creating Kubernetes secret with JWT key from Jenkins..."
+                                kubectl create secret generic luxe-jewelry-secrets \
+                                    --from-literal=JWT_SECRET_KEY="$JWT_SECRET" \
+                                    --namespace=luxe-jewelry \
+                                    --dry-run=client -o yaml | kubectl apply -f -
+                            '''
+                        }
+                        
+                        // Create Docker registry secret for pulling images
+                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                            sh '''
+                                echo "Creating Docker registry secret for Kubernetes..."
+                                kubectl create secret docker-registry dockerhub-secret \
+                                    --docker-server=https://index.docker.io/v1/ \
+                                    --docker-username="$DOCKER_USERNAME" \
+                                    --docker-password="$DOCKER_PASSWORD" \
+                                    --namespace=luxe-jewelry \
+                                    --dry-run=client -o yaml | kubectl apply -f -
+                                
+                                echo "Docker registry secret created!"
+                            '''
+                        }
+                        
+                        sh '''
+                                kubectl apply -f k8s/deployments/auth-service-deployment.yaml
+                                kubectl apply -f k8s/deployments/backend-deployment.yaml
+                                kubectl apply -f k8s/deployments/frontend-deployment.yaml
+                                kubectl apply -f k8s/base/ingress.yaml
+                                
+                                # Wait for deployments to be ready
+                                echo "Waiting for deployments to be ready..."
+                                kubectl rollout status deployment/auth-service -n luxe-jewelry --timeout=300s
+                                kubectl rollout status deployment/backend -n luxe-jewelry --timeout=300s
+                                kubectl rollout status deployment/frontend -n luxe-jewelry --timeout=300s
+                                
+                                # Display deployment status
+                                echo "=== Deployment Status ==="
+                                kubectl get all -n luxe-jewelry
+                                
+                                echo "=== Pod Details ==="
+                                kubectl get pods -n luxe-jewelry -o wide
+                                
+                                echo "=== Services ==="
+                                kubectl get svc -n luxe-jewelry
+                                
+                                echo "=== Ingress ==="
+                                kubectl get ingress -n luxe-jewelry
+                                
+                                # Get Minikube service URL
+                                echo "=== Access URLs ==="
+                                echo "Frontend: http://$(minikube ip):30000"
+                                echo "Or use: minikube service frontend -n luxe-jewelry --url"
+                                
+                                echo "Deployment to Kubernetes completed successfully!"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy with Docker Compose (Alternative)') {
+            when {
+                expression {
+                    return params.DEPLOY_METHOD == 'docker-compose'
+                }
+            }
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
