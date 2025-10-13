@@ -400,45 +400,31 @@ pipeline {
             }
         }
         
-        stage('Prepare Images for Kubernetes') {
-            steps {
-                script {
-                    try {
-                        timeout(time: 10, unit: 'MINUTES') {
-                            withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                                sh '''
-                                    echo "=== Preparing images for Kubernetes deployment ==="
-                                    echo "Tagging images for iDave621 registry..."
-                                    
-                                    # Tag images for Kubernetes to pull from idave621 registry
-                                    docker tag ${AUTH_SERVICE_IMAGE}:latest idave621/luxe-jewelry-auth-service:latest
-                                    docker tag ${BACKEND_IMAGE}:latest idave621/luxe-jewelry-backend:latest
-                                    docker tag ${FRONTEND_IMAGE}:latest idave621/luxe-jewelry-frontend:latest
-                                    
-                                    echo "Logging into Docker Hub for Kubernetes images..."
-                                    echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                                    
-                                    echo "Pushing images to idave621 registry for Kubernetes..."
-                                    docker push idave621/luxe-jewelry-auth-service:latest
-                                    docker push idave621/luxe-jewelry-backend:latest
-                                    docker push idave621/luxe-jewelry-frontend:latest
-                                    
-                                    echo "Images ready for Kubernetes deployment!"
-                                '''
-                            }
-                        }
-                    } catch (Exception e) {
-                        echo "Failed to prepare Kubernetes images: ${e.message}"
-                        echo "This may affect Kubernetes deployment"
-                    }
-                }
-            }
-        }
-        
         stage('Deploy to Kubernetes') {
             steps {
                 script {
                     timeout(time: 10, unit: 'MINUTES') {
+                        // First, prepare and push images for Kubernetes
+                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                            sh '''
+                                echo "=== Preparing images for Kubernetes ==="
+                                
+                                # Tag images for Kubernetes to pull from idave621 registry
+                                docker tag ${AUTH_SERVICE_IMAGE}:latest idave621/luxe-jewelry-auth-service:latest
+                                docker tag ${BACKEND_IMAGE}:latest idave621/luxe-jewelry-backend:latest
+                                docker tag ${FRONTEND_IMAGE}:latest idave621/luxe-jewelry-frontend:latest
+                                
+                                echo "Pushing images to idave621 registry..."
+                                echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                                docker push idave621/luxe-jewelry-auth-service:latest
+                                docker push idave621/luxe-jewelry-backend:latest
+                                docker push idave621/luxe-jewelry-frontend:latest
+                                
+                                echo "Images ready for Kubernetes!"
+                            '''
+                        }
+                        
+                        // Now deploy to Kubernetes
                         withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
                             sh '''
                                 echo "=== Deploying to Kubernetes ==="
@@ -489,38 +475,44 @@ pipeline {
                         }
                         
                         sh '''
-                                kubectl apply -f k8s/deployments/auth-service-deployment.yaml
-                                kubectl apply -f k8s/deployments/backend-deployment.yaml
-                                kubectl apply -f k8s/deployments/frontend-deployment.yaml
-                                kubectl apply -f k8s/base/ingress.yaml
-                                
-                                # Wait for deployments to be ready
-                                echo "Waiting for deployments to be ready..."
-                                kubectl rollout status deployment/auth-service -n luxe-jewelry --timeout=300s
-                                kubectl rollout status deployment/backend -n luxe-jewelry --timeout=300s
-                                kubectl rollout status deployment/frontend -n luxe-jewelry --timeout=300s
-                                
-                                # Display deployment status
-                                echo "=== Deployment Status ==="
-                                kubectl get all -n luxe-jewelry
-                                
-                                echo "=== Pod Details ==="
-                                kubectl get pods -n luxe-jewelry -o wide
-                                
-                                echo "=== Services ==="
-                                kubectl get svc -n luxe-jewelry
-                                
-                                echo "=== Ingress ==="
-                                kubectl get ingress -n luxe-jewelry
-                                
-                                # Get Minikube service URL
-                                echo "=== Access URLs ==="
-                                echo "Frontend: http://$(minikube ip):30000"
-                                echo "Or use: minikube service frontend -n luxe-jewelry --url"
-                                
-                                echo "Deployment to Kubernetes completed successfully!"
-                            '''
-                        }
+                            kubectl apply -f k8s/deployments/auth-service-deployment.yaml
+                            kubectl apply -f k8s/deployments/backend-deployment.yaml
+                            kubectl apply -f k8s/deployments/frontend-deployment.yaml
+                            kubectl apply -f k8s/base/ingress.yaml
+                            
+
+                            # Wait for deployments to be ready
+                            echo "Waiting for deployments to be ready..."
+                            kubectl rollout status deployment/auth-service -n luxe-jewelry --timeout=300s
+                            kubectl rollout status deployment/backend -n luxe-jewelry --timeout=300s
+                            kubectl rollout status deployment/frontend -n luxe-jewelry --timeout=300s
+                            
+
+                            # Display deployment status
+                            echo "=== Deployment Status ==="
+                            kubectl get all -n luxe-jewelry
+                            
+
+                            echo "=== Pod Details ==="
+                            kubectl get pods -n luxe-jewelry -o wide
+                            
+
+                            echo "=== Services ==="
+                            kubectl get svc -n luxe-jewelry
+                            
+
+                            echo "=== Ingress ==="
+                            kubectl get ingress -n luxe-jewelry
+                            
+
+                            # Get Minikube service URL
+                            echo "=== Access URLs ==="
+                            echo "Frontend: http://$(minikube ip):30000"
+                            echo "Or use: minikube service frontend -n luxe-jewelry --url"
+                            
+
+                            echo "Deployment to Kubernetes completed successfully!"
+                        '''
                     }
                 }
             }
