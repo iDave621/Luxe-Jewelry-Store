@@ -409,38 +409,45 @@ pipeline {
                         echo "Using images from ${DOCKER_REGISTRY} registry for Kubernetes deployment"
                         
                         // Now deploy to Kubernetes
-                        withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
-                            sh '''
-                                echo "=== Deploying to Kubernetes ==="
-                                
-                                # Check if kubectl is available
-                                if ! command -v kubectl &> /dev/null; then
-                                    echo "ERROR: kubectl is not installed or not in PATH"
-                                    exit 1
-                                fi
-                                
-                                # Check if Minikube is running
-                                if ! kubectl cluster-info &> /dev/null; then
-                                    echo "ERROR: Kubernetes cluster is not accessible"
-                                    echo "Please start Minikube: minikube start"
-                                    exit 1
-                                fi
-                                
-                                echo "Kubernetes cluster is accessible"
-                                kubectl cluster-info
-                                
-                                # Apply Kubernetes manifests
-                                echo "Applying Kubernetes manifests..."
-                                kubectl apply -f k8s/base/namespace.yaml
-                                kubectl apply -f k8s/base/configmap.yaml
-                                
-                                # Create secret with JWT key from Jenkins credentials
-                                echo "Creating Kubernetes secret with JWT key from Jenkins..."
-                                kubectl create secret generic luxe-jewelry-secrets \
-                                    --from-literal=JWT_SECRET_KEY="$JWT_SECRET" \
-                                    --namespace=luxe-jewelry \
-                                    --dry-run=client -o yaml | kubectl apply -f -
-                            '''
+                        sh '''
+                            echo "=== Deploying to Kubernetes ==="
+                            
+                            # Check if kubectl is available
+                            if ! command -v kubectl &> /dev/null; then
+                                echo "ERROR: kubectl is not installed or not in PATH"
+                                exit 1
+                            fi
+                            
+                            # Check if Minikube is running
+                            if ! kubectl cluster-info &> /dev/null; then
+                                echo "ERROR: Kubernetes cluster is not accessible"
+                                echo "Please start Minikube: minikube start"
+                                exit 1
+                            fi
+                            
+                            echo "Kubernetes cluster is accessible"
+                            kubectl cluster-info
+                            
+                            # Apply Kubernetes manifests
+                            echo "Applying Kubernetes manifests..."
+                            kubectl apply -f k8s/base/namespace.yaml
+                            kubectl apply -f k8s/base/configmap.yaml
+                        '''
+                        
+                        // Try to create JWT secret if credential exists
+                        try {
+                            withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
+                                sh '''
+                                    echo "Creating Kubernetes secret with JWT key from Jenkins..."
+                                    kubectl create secret generic luxe-jewelry-secrets \
+                                        --from-literal=JWT_SECRET_KEY="$JWT_SECRET" \
+                                        --namespace=luxe-jewelry \
+                                        --dry-run=client -o yaml | kubectl apply -f -
+                                '''
+                            }
+                        } catch (Exception e) {
+                            echo "Warning: JWT secret credential not found. Using default secret from k8s/base/secret.yaml"
+                            sh 'kubectl apply -f k8s/base/secret.yaml'
                         }
                         
                         // Create Docker registry secret for pulling images
