@@ -21,7 +21,7 @@ spec:
       - name: dockerhub-secret
       containers:
       - name: auth-service
-        image: idave621/luxe-jewelry-auth-service:latest
+        image: vixx3/luxe-jewelry-auth-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8001

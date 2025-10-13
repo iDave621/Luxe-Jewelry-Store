@@ -404,25 +404,9 @@ pipeline {
             steps {
                 script {
                     timeout(time: 10, unit: 'MINUTES') {
-                        // First, prepare and push images for Kubernetes
-                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                            sh '''
-                                echo "=== Preparing images for Kubernetes ==="
-                                
-                                # Tag images for Kubernetes to pull from idave621 registry
-                                docker tag ${AUTH_SERVICE_IMAGE}:latest idave621/luxe-jewelry-auth-service:latest
-                                docker tag ${BACKEND_IMAGE}:latest idave621/luxe-jewelry-backend:latest
-                                docker tag ${FRONTEND_IMAGE}:latest idave621/luxe-jewelry-frontend:latest
-                                
-                                echo "Pushing images to idave621 registry..."
-                                echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                                docker push idave621/luxe-jewelry-auth-service:latest
-                                docker push idave621/luxe-jewelry-backend:latest
-                                docker push idave621/luxe-jewelry-frontend:latest
-                                
-                                echo "Images ready for Kubernetes!"
-                            '''
-                        }
+                        // Images are already pushed to vixx3 registry in earlier stage
+                        // Kubernetes will use those images directly
+                        echo "Using images from ${DOCKER_REGISTRY} registry for Kubernetes deployment"
                         
                         // Now deploy to Kubernetes
                         withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
