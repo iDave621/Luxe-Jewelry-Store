@@ -358,6 +358,7 @@ spec:
                                 echo "Docker Hub push failed with error: ${e.message}"
                                 echo "Continue pipeline execution without failing the build"
                             }
+                            }
                         }
                     }
                 }
