@@ -33,7 +33,7 @@ spec:
     - name: DOCKER_HOST
       value: tcp://localhost:2375
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: alpine/k8s:1.28.3
     command:
     - cat
     tty: true
