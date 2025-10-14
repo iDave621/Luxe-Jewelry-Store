@@ -555,12 +555,29 @@ spec:
                                 echo "=== Ingress ==="
                                 kubectl get ingress -n luxe-jewelry
                                 
-                                # Get Minikube service URL
-                                echo "=== Access URLs ==="
-                                echo "Frontend: http://$(minikube ip):30000"
-                                echo "Or use: minikube service frontend -n luxe-jewelry --url"
-                                
-                                echo "Deployment to Kubernetes completed successfully!"
+                                echo ""
+                                echo "╔════════════════════════════════════════════════════════════════╗"
+                                echo "║                  🎉 DEPLOYMENT SUCCESSFUL! 🎉                  ║"
+                                echo "╠════════════════════════════════════════════════════════════════╣"
+                                echo "║                                                                ║"
+                                echo "║  📱 Access Your Luxe Jewelry Store:                            ║"
+                                echo "║                                                                ║"
+                                echo "║  Option 1: Direct URL (may not work on Windows)                ║"
+                                echo "║     http://192.168.49.2:30000                                  ║"
+                                echo "║                                                                ║"
+                                echo "║  Option 2: Use Minikube Service (RECOMMENDED)                  ║"
+                                echo "║     Run in terminal:                                           ║"
+                                echo "║     minikube service frontend -n luxe-jewelry                  ║"
+                                echo "║                                                                ║"
+                                echo "║  Option 3: Port Forward                                        ║"
+                                echo "║     kubectl port-forward -n luxe-jewelry svc/frontend 3000:80  ║"
+                                echo "║     Then open: http://localhost:3000                           ║"
+                                echo "║                                                                ║"
+                                echo "║  🔍 Check Status:                                              ║"
+                                echo "║     kubectl get pods -n luxe-jewelry                           ║"
+                                echo "║                                                                ║"
+                                echo "╚════════════════════════════════════════════════════════════════╝"
+                                echo ""
                             '''
                         }
                     }
