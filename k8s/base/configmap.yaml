@@ -11,11 +11,11 @@ data:
   # Backend Configuration
   BACKEND_PORT: "8000"
   
-  # Frontend Configuration (Windows Docker Driver uses localhost with port-forward)
-  # Note: Requires port-forwarding tunnels to be running
-  REACT_APP_API_BASE_URL: "http://localhost:8000/api"
-  REACT_APP_AUTH_BASE_URL: "http://localhost:8001/auth"
-  REACT_APP_BACKEND_HOST: "localhost"
+  # Frontend Configuration - Use proxy to avoid CORS issues
+  # Frontend will proxy API calls through nginx to backend services
+  REACT_APP_API_BASE_URL: "/api"
+  REACT_APP_AUTH_BASE_URL: "/auth"
+  REACT_APP_BACKEND_HOST: "backend"
   REACT_APP_BACKEND_PORT: "8000"
   
   # Python Configuration
