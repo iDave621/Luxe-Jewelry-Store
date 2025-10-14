@@ -69,10 +69,10 @@ spec:
         
         // Nexus UI URL
         NEXUS_UI_URL = "http://localhost:8081"
-        // URL for tagging and pushing Docker images
-        NEXUS_DOCKER_REGISTRY = "localhost:8082"
+        // URL for tagging and pushing Docker images (use host.minikube.internal for access from K8s pods)
+        NEXUS_DOCKER_REGISTRY = "host.minikube.internal:8082"
         // URL for Docker login command (with http:// prefix)
-        NEXUS_DOCKER_LOGIN_URL = "http://localhost:8082"
+        NEXUS_DOCKER_LOGIN_URL = "http://host.minikube.internal:8082"
         // Nexus repository name
         NEXUS_REPO = "docker-nexus"
         // Jenkins credential ID for Nexus authentication
@@ -392,13 +392,13 @@ spec:
                                             mkdir -p ~/.docker
                                             cat > ~/.docker/config.json << EOF
                                             {
-                                                "insecure-registries": ["localhost:8082", "localhost:8081"]
+                                                "insecure-registries": ["host.minikube.internal:8082", "host.minikube.internal:8081"]
                                             }
                                             EOF
                                             
                                             # Tag just auth service
                                             echo "Tagging just auth service for Nexus..."
-                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-auth-service:${VERSION}
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
                                             
                                             # Force logout to clear any stale credentials
                                             docker logout || true
@@ -406,13 +406,13 @@ spec:
                                             # Login to Nexus - with retry
                                             for attempt in 1 2 3; do
                                                 echo "Login attempt $attempt..."
-                                                echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin && break
+                                                echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin && break
                                                 sleep 2
                                             done
                                             
                                             # Push just auth service
                                             echo "Pushing auth service image to Nexus..."
-                                            docker push localhost:8082/luxe-jewelry-auth-service:${VERSION}
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
                                         '''
                                         
                                         echo "First service pushed successfully, proceeding with others"
@@ -421,36 +421,36 @@ spec:
                                         sh '''
                                             # Force logout and re-login before pushing backend
                                             docker logout || true
-                                            echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin
+                                            echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin
                                             
                                             # Tag and push backend with fresh credentials
-                                            docker tag ${BACKEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-backend:${VERSION}
+                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
                                             echo "Pushing backend image to Nexus..."
-                                            docker push localhost:8082/luxe-jewelry-backend:${VERSION} || true
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION} || true
                                         '''
                                         
                                         // Finally try the frontend separately with fresh login
                                         sh '''
                                             # Force logout and re-login before pushing frontend
                                             docker logout || true
-                                            echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin
+                                            echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin
                                             
                                             # Tag and push frontend with fresh credentials
-                                            docker tag ${FRONTEND_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-frontend:${VERSION}
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
                                             echo "Pushing frontend image to Nexus..."
-                                            docker push localhost:8082/luxe-jewelry-frontend:${VERSION} || true
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} || true
                                         '''
                                         
                                         // Finally push auth service with standard version
                                         sh '''
                                             # Force logout and re-login before pushing auth service
                                             docker logout || true
-                                            echo "$NEXUS_PASSWORD" | docker login http://localhost:8082 -u "$NEXUS_USERNAME" --password-stdin
+                                            echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin
                                             
                                             # Tag and push auth service with fresh credentials
-                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} localhost:8082/luxe-jewelry-auth-service:${VERSION}
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
                                             echo "Pushing auth service image to Nexus..."
-                                            docker push localhost:8082/luxe-jewelry-auth-service:${VERSION} || true
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION} || true
                                         '''
                                     }
                                 }
