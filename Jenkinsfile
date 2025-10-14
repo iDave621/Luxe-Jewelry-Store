@@ -485,38 +485,38 @@ spec:
                             kubectl apply -f k8s/base/configmap.yaml
                         '''
                         
-                        // Try to create JWT secret if credential exists
-                        try {
-                            withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
+                            // Try to create JWT secret if credential exists
+                            try {
+                                withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
+                                    sh '''
+                                        echo "Creating Kubernetes secret with JWT key from Jenkins..."
+                                        kubectl create secret generic luxe-jewelry-secrets \
+                                            --from-literal=JWT_SECRET_KEY="$JWT_SECRET" \
+                                            --namespace=luxe-jewelry \
+                                            --dry-run=client -o yaml | kubectl apply -f -
+                                    '''
+                                }
+                            } catch (Exception e) {
+                                echo "Warning: JWT secret credential not found. Using default secret from k8s/base/secret.yaml"
+                                sh 'kubectl apply -f k8s/base/secret.yaml'
+                            }
+                            
+                            // Create Docker registry secret for pulling images
+                            withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
                                 sh '''
-                                    echo "Creating Kubernetes secret with JWT key from Jenkins..."
-                                    kubectl create secret generic luxe-jewelry-secrets \
-                                        --from-literal=JWT_SECRET_KEY="$JWT_SECRET" \
+                                    echo "Creating Docker registry secret for Kubernetes..."
+                                    kubectl create secret docker-registry dockerhub-secret \
+                                        --docker-server=https://index.docker.io/v1/ \
+                                        --docker-username="$DOCKER_USERNAME" \
+                                        --docker-password="$DOCKER_PASSWORD" \
                                         --namespace=luxe-jewelry \
                                         --dry-run=client -o yaml | kubectl apply -f -
+                                    
+                                    echo "Docker registry secret created!"
                                 '''
                             }
-                        } catch (Exception e) {
-                            echo "Warning: JWT secret credential not found. Using default secret from k8s/base/secret.yaml"
-                            sh 'kubectl apply -f k8s/base/secret.yaml'
-                        }
-                        
-                        // Create Docker registry secret for pulling images
-                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                            
                             sh '''
-                                echo "Creating Docker registry secret for Kubernetes..."
-                                kubectl create secret docker-registry dockerhub-secret \
-                                    --docker-server=https://index.docker.io/v1/ \
-                                    --docker-username="$DOCKER_USERNAME" \
-                                    --docker-password="$DOCKER_PASSWORD" \
-                                    --namespace=luxe-jewelry \
-                                    --dry-run=client -o yaml | kubectl apply -f -
-                                
-                                echo "Docker registry secret created!"
-                            '''
-                        }
-                        
-                        sh '''
                             kubectl apply -f k8s/deployments/auth-service-deployment.yaml
                             kubectl apply -f k8s/deployments/backend-deployment.yaml
                             kubectl apply -f k8s/deployments/frontend-deployment.yaml
