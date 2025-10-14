@@ -21,7 +21,7 @@ spec:
       - name: dockerhub-secret
       containers:
       - name: auth-service
-        image: vixx3/luxe-jewelry-auth-service:latest
+        image: host.minikube.internal:8082/luxe-jewelry-auth-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8001

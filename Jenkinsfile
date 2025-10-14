@@ -393,23 +393,26 @@ spec:
                                         echo "Trying a focused approach with only the auth service first"
                                         
                                         sh '''
-                                            # Tag just auth service
-                                            echo "Tagging just auth service for Nexus..."
+                                            # Tag auth service for Nexus (both version and latest)
+                                            echo "Tagging auth service for Nexus..."
                                             docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:latest
                                             
                                             # Force logout to clear any stale credentials
                                             docker logout || true
                                             
-                                            # Login to Nexus - with retry (using --insecure flag as backup)
+                                            # Login to Nexus - with retry
                                             for attempt in 1 2 3; do
                                                 echo "Login attempt $attempt..."
                                                 echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin && break
                                                 sleep 2
                                             done
                                             
-                                            # Push just auth service
-                                            echo "Pushing auth service image to Nexus..."
+                                            # Push auth service (both version and latest)
+                                            echo "Pushing auth service ${VERSION} to Nexus..."
                                             docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
+                                            echo "Pushing auth service latest to Nexus..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:latest
                                         '''
                                         
                                         echo "First service pushed successfully, proceeding with others"
@@ -420,35 +423,33 @@ spec:
                                             docker logout || true
                                             echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin
                                             
-                                            # Tag and push backend with fresh credentials
+                                            # Tag backend with fresh credentials (both version and latest)
                                             docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION}
-                                            echo "Pushing backend image to Nexus..."
+                                            docker tag ${BACKEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:latest
+                                            
+                                            echo "Pushing backend ${VERSION} to Nexus..."
                                             docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION} || true
+                                            echo "Pushing backend latest to Nexus..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:latest || true
                                         '''
                                         
                                         // Finally try the frontend separately with fresh login
                                         sh '''
                                             # Force logout and re-login before pushing frontend
                                             docker logout || true
-
-                                            
-                                            # Tag and push frontend with fresh credentials
-                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
-                                            echo "Pushing frontend image to Nexus..."
-                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} || true
-                                        '''
-                                        
-                                        // Finally push auth service with standard version
-                                        sh '''
-                                            # Force logout and re-login before pushing auth service
-                                            docker logout || true
                                             echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin
                                             
-                                            # Tag and push auth service with fresh credentials
-                                            docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
-                                            echo "Pushing auth service image to Nexus..."
-                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION} || true
+                                            # Tag frontend with fresh credentials (both version and latest)
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
+                                            docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:latest
+                                            
+                                            echo "Pushing frontend ${VERSION} to Nexus..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} || true
+                                            echo "Pushing frontend latest to Nexus..."
+                                            docker push ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:latest || true
                                         '''
+                                        
+                                        echo "✅ All images pushed to Nexus successfully!"
                                     }
                                 }
                                 } catch (Exception e) {
@@ -533,11 +534,11 @@ spec:
                                 kubectl apply -f k8s/deployments/frontend-deployment.yaml
                                 kubectl apply -f k8s/base/ingress.yaml
                                 
-                                # Update deployments with versioned images
-                                echo "Updating deployments with version ${VERSION}..."
-                                kubectl set image deployment/auth-service auth-service=${AUTH_SERVICE_IMAGE}:${VERSION} -n luxe-jewelry
-                                kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${VERSION} -n luxe-jewelry
-                                kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${VERSION} -n luxe-jewelry
+                                # Update deployments with versioned images from Nexus
+                                echo "Updating deployments with version ${VERSION} from Nexus..."
+                                kubectl set image deployment/auth-service auth-service=${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION} -n luxe-jewelry
+                                kubectl set image deployment/backend backend=${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-backend:${VERSION} -n luxe-jewelry
+                                kubectl set image deployment/frontend frontend=${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION} -n luxe-jewelry
                                 
                                 # Wait for deployments to be ready
                                 echo "Waiting for deployments to be ready..."

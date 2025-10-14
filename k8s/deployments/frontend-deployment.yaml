@@ -21,7 +21,7 @@ spec:
       - name: dockerhub-secret
       containers:
       - name: frontend
-        image: vixx3/luxe-jewelry-frontend:latest
+        image: host.minikube.internal:8082/luxe-jewelry-frontend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
