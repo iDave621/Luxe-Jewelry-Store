@@ -21,6 +21,11 @@ spec:
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
+    - name: DOCKER_OPTS
+      value: "--insecure-registry=host.minikube.internal:8082 --insecure-registry=host.minikube.internal:8081"
+    args:
+    - "--insecure-registry=host.minikube.internal:8082"
+    - "--insecure-registry=host.minikube.internal:8081"
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
@@ -388,14 +393,6 @@ spec:
                                         echo "Trying a focused approach with only the auth service first"
                                         
                                         sh '''
-                                            # Configure Docker daemon for insecure registries
-                                            mkdir -p ~/.docker
-                                            cat > ~/.docker/config.json << EOF
-                                            {
-                                                "insecure-registries": ["host.minikube.internal:8082", "host.minikube.internal:8081"]
-                                            }
-                                            EOF
-                                            
                                             # Tag just auth service
                                             echo "Tagging just auth service for Nexus..."
                                             docker tag ${AUTH_SERVICE_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-auth-service:${VERSION}
@@ -403,7 +400,7 @@ spec:
                                             # Force logout to clear any stale credentials
                                             docker logout || true
                                             
-                                            # Login to Nexus - with retry
+                                            # Login to Nexus - with retry (using --insecure flag as backup)
                                             for attempt in 1 2 3; do
                                                 echo "Login attempt $attempt..."
                                                 echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin && break
@@ -433,7 +430,7 @@ spec:
                                         sh '''
                                             # Force logout and re-login before pushing frontend
                                             docker logout || true
-                                            echo "$NEXUS_PASSWORD" | docker login ${NEXUS_DOCKER_LOGIN_URL} -u "$NEXUS_USERNAME" --password-stdin
+
                                             
                                             # Tag and push frontend with fresh credentials
                                             docker tag ${FRONTEND_IMAGE}:${VERSION} ${NEXUS_DOCKER_REGISTRY}/luxe-jewelry-frontend:${VERSION}
