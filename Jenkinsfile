@@ -18,14 +18,14 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
-    env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
-    - name: DOCKER_OPTS
-      value: "--insecure-registry=host.minikube.internal:8082 --insecure-registry=host.minikube.internal:8081"
+    command:
+    - dockerd-entrypoint.sh
     args:
     - "--insecure-registry=host.minikube.internal:8082"
     - "--insecure-registry=host.minikube.internal:8081"
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
