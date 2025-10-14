@@ -120,7 +120,7 @@ def get_current_user(user_id: str = Depends(verify_token)):
 async def root():
     return {"message": "Welcome to Luxe Jewelry Store Auth Service"}
 
-@app.post("/auth/register", response_model=TokenResponse)
+@app.post("/register", response_model=TokenResponse)
 async def register_user(user_data: UserCreate):
     """Register a new user"""
     # Check if user already exists
@@ -172,7 +172,7 @@ async def register_user(user_data: UserCreate):
         user=user_response
     )
 
-@app.post("/auth/login", response_model=TokenResponse)
+@app.post("/login", response_model=TokenResponse)
 async def login_user(login_data: UserLogin):
     """Login user and return access token"""
     # Find user by email
@@ -218,7 +218,7 @@ async def login_user(login_data: UserLogin):
         user=user_response
     )
 
-@app.get("/auth/me", response_model=UserResponse)
+@app.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: dict = Depends(get_current_user)):
     """Get current user profile"""
     return UserResponse(
@@ -231,7 +231,7 @@ async def get_current_user_profile(current_user: dict = Depends(get_current_user
         is_active=current_user["is_active"]
     )
 
-@app.put("/auth/me", response_model=UserResponse)
+@app.put("/me", response_model=UserResponse)
 async def update_user_profile(
     user_update: UserUpdate,
     current_user: dict = Depends(get_current_user)
@@ -259,7 +259,7 @@ async def update_user_profile(
         is_active=updated_user["is_active"]
     )
 
-@app.post("/auth/change-password")
+@app.post("/change-password")
 async def change_password(
     password_data: PasswordChange,
     current_user: dict = Depends(get_current_user)
@@ -280,14 +280,14 @@ async def change_password(
 
     return {"message": "Password changed successfully"}
 
-@app.post("/auth/logout")
+@app.post("/logout")
 async def logout_user(current_user: dict = Depends(get_current_user)):
     """Logout user (in a real app, you'd blacklist the token)"""
     # Log the logout action for security auditing
     print(f"User {current_user['id']} logged out at {datetime.utcnow()}")
     return {"message": "Logged out successfully"}
 
-@app.get("/auth/users", response_model=List[UserResponse])
+@app.get("/users", response_model=List[UserResponse])
 async def get_all_users():
     """Get all users (admin endpoint - in production, add admin authentication)"""
     users = []
