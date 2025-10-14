@@ -3,6 +3,14 @@ FROM node:16-alpine as build
 
 WORKDIR /app
 
+# Accept build arguments for API URLs
+ARG REACT_APP_API_BASE_URL=/api
+ARG REACT_APP_AUTH_BASE_URL=/auth
+
+# Set as environment variables for the build
+ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
+ENV REACT_APP_AUTH_BASE_URL=$REACT_APP_AUTH_BASE_URL
+
 # Copy package files
 COPY package*.json ./
 

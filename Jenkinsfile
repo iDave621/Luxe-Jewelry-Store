@@ -109,7 +109,14 @@ spec:
                     steps {
                         container('docker-client') {
                             dir('jewelry-store') {
-                                sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
+                                sh '''
+                                    docker build \
+                                        --build-arg REACT_APP_API_BASE_URL=/api \
+                                        --build-arg REACT_APP_AUTH_BASE_URL=/auth \
+                                        -t ${FRONTEND_IMAGE}:${VERSION} \
+                                        -t ${FRONTEND_IMAGE}:latest \
+                                        .
+                                '''
                             }
                         }
                     }
