@@ -485,8 +485,6 @@ spec:
                                 kubectl config use-context jenkins@kubernetes
                                 
                                 echo "Kubernetes cluster configured successfully"
-                                kubectl version --short || true
-                                kubectl get namespaces
                                 
                                 # Apply Kubernetes manifests
                                 echo "Applying Kubernetes manifests..."
