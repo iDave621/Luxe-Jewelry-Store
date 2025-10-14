@@ -118,13 +118,15 @@ spec:
             parallel {
                 stage('Unit Tests') {
                     steps {
-                        script {
-                            // Run tests from the shared library
-                            echo "Running tests from shared library..."
-                            runPythonTests([
-                                resultPath: 'test-results',
-                                testCommand: 'pytest'
-                            ])
+                        container('python') {
+                            script {
+                                // Run tests from the shared library
+                                echo "Running tests from shared library..."
+                                runPythonTests([
+                                    resultPath: 'test-results',
+                                    testCommand: 'pytest'
+                                ])
+                            }
                         }
                     }
                     post {
@@ -136,8 +138,9 @@ spec:
                 
                 stage('Static Code Linting') {
                     steps {
-                        script {
-                            sh '''
+                        container('python') {
+                            script {
+                                sh '''
                                 # Determine Python command
                                 if command -v python3 &> /dev/null; then
                                   python3 -m pip install --upgrade pip --break-system-packages || true
@@ -174,6 +177,7 @@ spec:
                                     echo "Pylint: No issues found" > pylint-reports/pylint.log
                                 fi
                             '''
+                            }
                         }
                     }
                     post {
