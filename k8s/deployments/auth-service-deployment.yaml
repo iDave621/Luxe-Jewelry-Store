@@ -22,7 +22,7 @@ spec:
       containers:
       - name: auth-service
         image: vixx3/luxe-jewelry-auth-service:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8001
           name: http

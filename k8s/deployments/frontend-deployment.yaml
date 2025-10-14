@@ -22,7 +22,7 @@ spec:
       containers:
       - name: frontend
         image: vixx3/luxe-jewelry-frontend:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
           name: http

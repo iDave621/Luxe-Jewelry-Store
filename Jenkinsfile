@@ -533,6 +533,12 @@ spec:
                                 kubectl apply -f k8s/deployments/frontend-deployment.yaml
                                 kubectl apply -f k8s/base/ingress.yaml
                                 
+                                # Update deployments with versioned images
+                                echo "Updating deployments with version ${VERSION}..."
+                                kubectl set image deployment/auth-service auth-service=${AUTH_SERVICE_IMAGE}:${VERSION} -n luxe-jewelry
+                                kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${VERSION} -n luxe-jewelry
+                                kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${VERSION} -n luxe-jewelry
+                                
                                 # Wait for deployments to be ready
                                 echo "Waiting for deployments to be ready..."
                                 kubectl rollout status deployment/auth-service -n luxe-jewelry --timeout=300s
