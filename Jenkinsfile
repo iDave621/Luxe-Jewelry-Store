@@ -461,30 +461,30 @@ spec:
                             
                             // Now deploy to Kubernetes
                             sh '''
-                            echo "=== Deploying to Kubernetes ==="
+                                echo "=== Deploying to Kubernetes ==="
+                                
+                                # Check if kubectl is available
+                                if ! command -v kubectl &> /dev/null; then
+                                    echo "ERROR: kubectl is not installed or not in PATH"
+                                    exit 1
+                                fi
+                                
+                                # Check if Minikube is running
+                                if ! kubectl cluster-info &> /dev/null; then
+                                    echo "ERROR: Kubernetes cluster is not accessible"
+                                    echo "Please start Minikube: minikube start"
+                                    exit 1
+                                fi
+                                
+                                echo "Kubernetes cluster is accessible"
+                                kubectl cluster-info
+                                
+                                # Apply Kubernetes manifests
+                                echo "Applying Kubernetes manifests..."
+                                kubectl apply -f k8s/base/namespace.yaml
+                                kubectl apply -f k8s/base/configmap.yaml
+                            '''
                             
-                            # Check if kubectl is available
-                            if ! command -v kubectl &> /dev/null; then
-                                echo "ERROR: kubectl is not installed or not in PATH"
-                                exit 1
-                            fi
-                            
-                            # Check if Minikube is running
-                            if ! kubectl cluster-info &> /dev/null; then
-                                echo "ERROR: Kubernetes cluster is not accessible"
-                                echo "Please start Minikube: minikube start"
-                                exit 1
-                            fi
-                            
-                            echo "Kubernetes cluster is accessible"
-                            kubectl cluster-info
-                            
-                            # Apply Kubernetes manifests
-                            echo "Applying Kubernetes manifests..."
-                            kubectl apply -f k8s/base/namespace.yaml
-                            kubectl apply -f k8s/base/configmap.yaml
-                        '''
-                        
                             // Try to create JWT secret if credential exists
                             try {
                                 withCredentials([string(credentialsId: 'jwt-secret-key', variable: 'JWT_SECRET')]) {
@@ -517,44 +517,37 @@ spec:
                             }
                             
                             sh '''
-                            kubectl apply -f k8s/deployments/auth-service-deployment.yaml
-                            kubectl apply -f k8s/deployments/backend-deployment.yaml
-                            kubectl apply -f k8s/deployments/frontend-deployment.yaml
-                            kubectl apply -f k8s/base/ingress.yaml
-                            
-
-                            # Wait for deployments to be ready
-                            echo "Waiting for deployments to be ready..."
-                            kubectl rollout status deployment/auth-service -n luxe-jewelry --timeout=300s
-                            kubectl rollout status deployment/backend -n luxe-jewelry --timeout=300s
-                            kubectl rollout status deployment/frontend -n luxe-jewelry --timeout=300s
-                            
-
-                            # Display deployment status
-                            echo "=== Deployment Status ==="
-                            kubectl get all -n luxe-jewelry
-                            
-
-                            echo "=== Pod Details ==="
-                            kubectl get pods -n luxe-jewelry -o wide
-                            
-
-                            echo "=== Services ==="
-                            kubectl get svc -n luxe-jewelry
-                            
-
-                            echo "=== Ingress ==="
-                            kubectl get ingress -n luxe-jewelry
-                            
-
-                            # Get Minikube service URL
-                            echo "=== Access URLs ==="
-                            echo "Frontend: http://$(minikube ip):30000"
-                            echo "Or use: minikube service frontend -n luxe-jewelry --url"
-                            
-
-                            echo "Deployment to Kubernetes completed successfully!"
-                        '''
+                                kubectl apply -f k8s/deployments/auth-service-deployment.yaml
+                                kubectl apply -f k8s/deployments/backend-deployment.yaml
+                                kubectl apply -f k8s/deployments/frontend-deployment.yaml
+                                kubectl apply -f k8s/base/ingress.yaml
+                                
+                                # Wait for deployments to be ready
+                                echo "Waiting for deployments to be ready..."
+                                kubectl rollout status deployment/auth-service -n luxe-jewelry --timeout=300s
+                                kubectl rollout status deployment/backend -n luxe-jewelry --timeout=300s
+                                kubectl rollout status deployment/frontend -n luxe-jewelry --timeout=300s
+                                
+                                # Display deployment status
+                                echo "=== Deployment Status ==="
+                                kubectl get all -n luxe-jewelry
+                                
+                                echo "=== Pod Details ==="
+                                kubectl get pods -n luxe-jewelry -o wide
+                                
+                                echo "=== Services ==="
+                                kubectl get svc -n luxe-jewelry
+                                
+                                echo "=== Ingress ==="
+                                kubectl get ingress -n luxe-jewelry
+                                
+                                # Get Minikube service URL
+                                echo "=== Access URLs ==="
+                                echo "Frontend: http://$(minikube ip):30000"
+                                echo "Or use: minikube service frontend -n luxe-jewelry --url"
+                                
+                                echo "Deployment to Kubernetes completed successfully!"
+                            '''
                         }
                     }
                 }
