@@ -37,6 +37,9 @@ spec:
     command:
     - cat
     tty: true
+    env:
+    - name: KUBECONFIG
+      value: /tmp/kubeconfig
   - name: python
     image: python:3.11-slim
     command:
@@ -468,21 +471,22 @@ spec:
                             sh '''
                                 echo "=== Deploying to Kubernetes ==="
                                 
-                                # Check if kubectl is available
-                                if ! command -v kubectl &> /dev/null; then
-                                    echo "ERROR: kubectl is not installed or not in PATH"
-                                    exit 1
-                                fi
+                                # Configure kubectl to use in-cluster service account
+                                KUBERNETES_SERVICE_HOST=${KUBERNETES_SERVICE_HOST:-kubernetes.default.svc}
+                                KUBERNETES_SERVICE_PORT=${KUBERNETES_SERVICE_PORT:-443}
+                                SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
+                                TOKEN=$(cat ${SERVICEACCOUNT}/token)
+                                CACERT=${SERVICEACCOUNT}/ca.crt
                                 
-                                # Check if Minikube is running
-                                if ! kubectl cluster-info &> /dev/null; then
-                                    echo "ERROR: Kubernetes cluster is not accessible"
-                                    echo "Please start Minikube: minikube start"
-                                    exit 1
-                                fi
+                                # Create kubeconfig
+                                kubectl config set-cluster kubernetes --server=https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT} --certificate-authority=${CACERT}
+                                kubectl config set-credentials jenkins --token=${TOKEN}
+                                kubectl config set-context jenkins@kubernetes --cluster=kubernetes --user=jenkins --namespace=jenkins
+                                kubectl config use-context jenkins@kubernetes
                                 
-                                echo "Kubernetes cluster is accessible"
+                                echo "Kubernetes cluster configured successfully"
                                 kubectl cluster-info
+                                kubectl get namespaces
                                 
                                 # Apply Kubernetes manifests
                                 echo "Applying Kubernetes manifests..."
