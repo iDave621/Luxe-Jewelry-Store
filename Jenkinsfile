@@ -3,8 +3,49 @@
 
 pipeline {
     agent {
-        node {
-            label 'docker-agent'
+        kubernetes {
+            cloud 'kubernetes'
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins: agent
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run
+  - name: docker-client
+    image: docker:24-cli
+    command:
+    - cat
+    tty: true
+    env:
+    - name: DOCKER_HOST
+      value: tcp://localhost:2375
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+    - cat
+    tty: true
+  - name: python
+    image: python:3.11-slim
+    command:
+    - cat
+    tty: true
+  volumes:
+  - name: docker-sock
+    emptyDir: {}
+'''
         }
     }
     
@@ -47,20 +88,26 @@ pipeline {
             parallel {
                 stage('Build Auth Service') {
                     steps {
-                        sh 'docker build -f auth-service/Dockerfile -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
+                        container('docker-client') {
+                            sh 'docker build -f auth-service/Dockerfile -t ${AUTH_SERVICE_IMAGE}:${VERSION} -t ${AUTH_SERVICE_IMAGE}:latest .'
+                        }
                     }
                 }
                 
                 stage('Build Backend') {
                     steps {
-                        sh 'docker build -f backend/Dockerfile -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
+                        container('docker-client') {
+                            sh 'docker build -f backend/Dockerfile -t ${BACKEND_IMAGE}:${VERSION} -t ${BACKEND_IMAGE}:latest .'
+                        }
                     }
                 }
                 
                 stage('Build Frontend') {
                     steps {
-                        dir('jewelry-store') {
-                            sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
+                        container('docker-client') {
+                            dir('jewelry-store') {
+                                sh 'docker build -t ${FRONTEND_IMAGE}:${VERSION} -t ${FRONTEND_IMAGE}:latest .'
+                            }
                         }
                     }
                 }
@@ -262,25 +309,26 @@ pipeline {
             parallel {
                 stage('Push to Docker Hub') {
                     steps {
-                        script {
-                            try {
-                                timeout(time: 10, unit: 'MINUTES') {
-                                    // Using Jenkins credentials for secure Docker Hub login
-                                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                                        // Print username (but not password) for debugging
-                                        sh 'echo "Using Docker Hub username: $DOCKER_USERNAME"'
-                                        
-                                        // Force Docker to log out first to ensure clean login
-                                        sh 'docker logout'
-                                        
-                                        // Explicitly login to Docker Hub with full URL
-                                        sh 'echo $DOCKER_PASSWORD | docker login https://index.docker.io/v1/ -u $DOCKER_USERNAME --password-stdin'
-                                        
-                                        // Verify we're logged in and can access the repositories
-                                        sh 'docker info | grep "Username"'
-                                        
-                                        // Push with detailed error messages
-                                        sh '''
+                        container('docker-client') {
+                            script {
+                                try {
+                                    timeout(time: 10, unit: 'MINUTES') {
+                                        // Using Jenkins credentials for secure Docker Hub login
+                                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                                            // Print username (but not password) for debugging
+                                            sh 'echo "Using Docker Hub username: $DOCKER_USERNAME"'
+                                            
+                                            // Force Docker to log out first to ensure clean login
+                                            sh 'docker logout'
+                                            
+                                            // Explicitly login to Docker Hub with full URL
+                                            sh 'echo $DOCKER_PASSWORD | docker login https://index.docker.io/v1/ -u $DOCKER_USERNAME --password-stdin'
+                                            
+                                            // Verify we're logged in and can access the repositories
+                                            sh 'docker info | grep "Username"'
+                                            
+                                            // Push with detailed error messages
+                                            sh '''
                                             echo "Pushing to Docker Hub as $DOCKER_USERNAME"
                                             
                                             # Push auth-service images
@@ -316,10 +364,11 @@ pipeline {
                 
                 stage('Push to Nexus Registry') {
                     steps {
-                        script {
-                            try {
-                                timeout(time: 10, unit: 'MINUTES') {
-                                    withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                        container('docker-client') {
+                            script {
+                                try {
+                                    timeout(time: 10, unit: 'MINUTES') {
+                                        withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                                         // Alternative approach - try just ONE image at a time
                                         echo "Trying a focused approach with only the auth service first"
                                         
@@ -390,9 +439,10 @@ pipeline {
                                         '''
                                     }
                                 }
-                            } catch (Exception e) {
-                                echo "Nexus push failed: ${e.message}"
-                                echo "Continue pipeline execution without failing the build"
+                                } catch (Exception e) {
+                                    echo "Nexus push failed: ${e.message}"
+                                    echo "Continue pipeline execution without failing the build"
+                                }
                             }
                         }
                     }
@@ -402,14 +452,15 @@ pipeline {
         
         stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    timeout(time: 10, unit: 'MINUTES') {
-                        // Images are already pushed to vixx3 registry in earlier stage
-                        // Kubernetes will use those images directly
-                        echo "Using images from ${DOCKER_REGISTRY} registry for Kubernetes deployment"
-                        
-                        // Now deploy to Kubernetes
-                        sh '''
+                container('kubectl') {
+                    script {
+                        timeout(time: 10, unit: 'MINUTES') {
+                            // Images are already pushed to vixx3 registry in earlier stage
+                            // Kubernetes will use those images directly
+                            echo "Using images from ${DOCKER_REGISTRY} registry for Kubernetes deployment"
+                            
+                            // Now deploy to Kubernetes
+                            sh '''
                             echo "=== Deploying to Kubernetes ==="
                             
                             # Check if kubectl is available
@@ -504,6 +555,7 @@ pipeline {
 
                             echo "Deployment to Kubernetes completed successfully!"
                         '''
+                        }
                     }
                 }
             }
@@ -516,8 +568,9 @@ pipeline {
                 }
             }
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                container('docker-client') {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh '''
                             # Deploy using docker-compose
                             docker-compose down || true
@@ -529,6 +582,7 @@ pipeline {
                             
                             echo "Deployment complete - All 3 services running"
                         '''
+                        }
                     }
                 }
             }
@@ -538,16 +592,10 @@ pipeline {
     
     post {
         always {
-            // Clean up Docker images
-            script {
-                try {
-                    sh 'docker image prune -f || true'
-                } catch (Exception e) {
-                    echo "Error cleaning up Docker images: ${e.message}"
-                }
-            }
             // Workspace cleanup
-            cleanWs()
+            script {
+                cleanWs()
+            }
         }
         success {
             echo 'Pipeline completed successfully!'
