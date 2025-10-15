@@ -549,16 +549,6 @@ spec:
                                 # Display deployment status
                                 echo "=== Deployment Status ==="
                                 kubectl get all -n luxe-jewelry
-                                
-                                echo "=== Pod Details ==="
-                                kubectl get pods -n luxe-jewelry -o wide
-                                
-                                echo "=== Services ==="
-                                kubectl get svc -n luxe-jewelry
-                                
-                                echo "=== Ingress ==="
-                                kubectl get ingress -n luxe-jewelry
-                                
                                 echo ""
                                 echo "╔════════════════════════════════════════════════════════════════╗"
                                 echo "║                  🎉 DEPLOYMENT SUCCESSFUL! 🎉                  ║"
@@ -566,19 +556,17 @@ spec:
                                 echo "║                                                                ║"
                                 echo "║  📱 Access Your Luxe Jewelry Store:                            ║"
                                 echo "║                                                                ║"
-                                echo "║  Option 1: Direct URL (may not work on Windows)                ║"
-                                echo "║     http://192.168.49.2:30000                                  ║"
-                                echo "║                                                                ║"
-                                echo "║  Option 2: Use Minikube Service (RECOMMENDED)                  ║"
-                                echo "║     Run in terminal:                                           ║"
-                                echo "║     minikube service frontend -n luxe-jewelry                  ║"
-                                echo "║                                                                ║"
-                                echo "║  Option 3: Port Forward                                        ║"
+                                echo "║  Option 1: Port Forward (EASIEST)                              ║"
                                 echo "║     kubectl port-forward -n luxe-jewelry svc/frontend 3000:80  ║"
                                 echo "║     Then open: http://localhost:3000                           ║"
                                 echo "║                                                                ║"
+                                echo "║  Option 2: Minikube Service                                    ║"
+                                echo "║     minikube service frontend -n luxe-jewelry                  ║"
+                                echo "║     (Opens browser automatically)                              ║"
+                                echo "║                                                                ║"
                                 echo "║  🔍 Check Status:                                              ║"
                                 echo "║     kubectl get pods -n luxe-jewelry                           ║"
+                                echo "║     kubectl get services -n luxe-jewelry                       ║"
                                 echo "║                                                                ║"
                                 echo "╚════════════════════════════════════════════════════════════════╝"
                                 echo ""
