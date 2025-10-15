@@ -589,33 +589,6 @@ spec:
             }
         }
         
-        stage('Deploy with Docker Compose (Alternative)') {
-            when {
-                expression {
-                    return params.DEPLOY_METHOD == 'docker-compose'
-                }
-            }
-            steps {
-                container('docker-client') {
-                    timeout(time: 5, unit: 'MINUTES') {
-                        withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                            # Deploy using docker-compose
-                            docker-compose down || true
-                            docker-compose up -d
-                            
-                            # Give containers a moment to start and verify they're running
-                            sleep 10
-                            docker ps
-                            
-                            echo "Deployment complete - All 3 services running"
-                        '''
-                        }
-                    }
-                }
-            }
-        }
-        
     }
     
     post {
