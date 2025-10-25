@@ -10,36 +10,40 @@ The application consists of three main services:
 2. **Backend** - FastAPI products and orders API (Port 8000) 
 3. **Frontend** - React SPA frontend (Port 3000)
 
-See [PROJECT-STRUCTURE.md](./PROJECT-STRUCTURE.md) for detailed architecture.
+See [docs/PROJECT-STRUCTURE.md](./docs/PROJECT-STRUCTURE.md) for detailed architecture.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
 - Git
-- (Optional) Minikube and kubectl for Kubernetes deployment
+- Minikube and kubectl for Kubernetes deployment
+- Helm 3.x for chart deployment
+- Nexus Docker Registry running on `host.minikube.internal:8082`
 
-### Run with Docker Compose
+### Option 1: Deploy with Helm (Recommended)
+```bash
+# Start Minikube
+minikube start --driver=docker
+
+# Deploy with Helm
+helm install luxe-jewelry ./luxe-jewelry-chart \
+  --namespace luxe-jewelry-helm \
+  --create-namespace
+
+# Access application
+minikube tunnel
+# Then visit: http://luxe-jewelry-helm.local
+```
+
+### Option 2: Run with Docker Compose
 ```bash
 git clone https://github.com/iDave621/Luxe-Jewelry-Store.git
 cd Luxe-Jewelry-Store
 docker-compose up --build
 ```
 
-### Run with Kubernetes (Minikube)
-```powershell
-# Start Minikube
-minikube start --driver=docker
-
-# Deploy application
-cd Luxe-Jewelry-Store\k8s
-.\deploy.ps1
-
-# Access application
-minikube service frontend -n luxe-jewelry
-```
-
-See [KUBERNETES-DEPLOYMENT.md](./KUBERNETES-DEPLOYMENT.md) for detailed Kubernetes deployment guide.
+See [docs/HELM_INTEGRATION_GUIDE.md](./docs/HELM_INTEGRATION_GUIDE.md) for detailed Helm deployment guide.
 
 ### Access the Application
 
@@ -62,15 +66,23 @@ The project uses a Jenkins pipeline defined in [Jenkinsfile](./Jenkinsfile) with
 3. **Quality Checks** - Runs unit tests and static code analysis
 4. **Security Scan** - Uses Snyk to scan Docker images for vulnerabilities
 5. **Test Services** - Runs application-specific tests for each service
-6. **Push to Registries** - Pushes images to Docker Hub and Nexus registries
-7. **Deploy to Kubernetes** - Deploys all services to Kubernetes cluster (Minikube)
-8. **Deploy with Docker Compose** - Alternative deployment method (optional)
+6. **Push to Nexus** - Pushes images to private Nexus Docker registry (`host.minikube.internal:8082`)
+7. **Deploy with Helm** - Deploys all services to Kubernetes using Helm charts
+8. **Verification** - Validates deployment health and accessibility
 
 ### Required Jenkins Credentials
 
-- `docker-hub` - Docker Hub credentials for pushing images to `vixx3` organization
+- `dockerhub` - Docker Hub credentials (for base images)
+- `nexus-credentials` - Nexus Docker registry credentials
 - `snky` - Snyk API token for security scanning
-- `jwt-secret-key` - JWT secret for secure authentication in the deployment
+- `jwt-secret-key` - JWT secret for secure authentication
+
+### Required Infrastructure
+
+- **Jenkins** running in Docker Desktop
+- **Nexus Repository** on `host.minikube.internal:8082`
+- **Minikube** with Ingress enabled
+- **Kubernetes Cloud** configured in Jenkins
 
 ## 🔧 Environment Variables
 
@@ -120,51 +132,62 @@ npm start
 
 ## 🚀 Deployment Options
 
-### 1. Kubernetes Deployment (Recommended)
+### 1. Helm Deployment (Recommended)
 
-Deploy to Kubernetes using Minikube:
+```bash
+# Install
+helm install luxe-jewelry ./luxe-jewelry-chart \
+  --namespace luxe-jewelry-helm \
+  --create-namespace
 
-```powershell
-# Start Minikube
-minikube start --driver=docker
+# Upgrade
+helm upgrade luxe-jewelry ./luxe-jewelry-chart
 
-# Deploy using automated script
-cd k8s
-.\deploy.ps1
-
-# Or deploy manually
-kubectl apply -f k8s/deploy-all.yaml
-
-# Access application
-minikube service frontend -n luxe-jewelry
+# Uninstall
+helm uninstall luxe-jewelry -n luxe-jewelry-helm
 ```
 
-See [KUBERNETES-DEPLOYMENT.md](./KUBERNETES-DEPLOYMENT.md) for comprehensive guide.
+See [luxe-jewelry-chart/README.md](./luxe-jewelry-chart/README.md) for full Helm documentation.
 
-### 2. Docker Compose Deployment
+### 2. Kubernetes Deployment (Raw Manifests)
+
+```powershell
+# Deploy using raw Kubernetes manifests
+kubectl apply -f k8s/deployments/
+kubectl apply -f k8s/base/
+```
+
+### 3. Docker Compose Deployment
 
 ```bash
 docker-compose up --build -d
 ```
 
-### 3. Manual Docker Hub Push
+## 📁 Project Structure
 
-```bash
-docker-compose build
-docker login
-docker tag luxe-jewelry-store_auth-service vixx3/luxe-jewelry-auth-service:latest
-docker tag luxe-jewelry-store_backend vixx3/luxe-jewelry-backend:latest
-docker tag luxe-jewelry-store_frontend vixx3/luxe-jewelry-frontend:latest
-
-docker push vixx3/luxe-jewelry-auth-service:latest
-docker push vixx3/luxe-jewelry-backend:latest
-docker push vixx3/luxe-jewelry-frontend:latest
 ```
-
-## 📁 Project Files
-
-- `Jenkinsfile` - Jenkins CI/CD pipeline configuration
-- `docker-compose.yml` - Docker Compose orchestration
-- `k8s/` - Kubernetes manifests and deployment scripts
-- `KUBERNETES-DEPLOYMENT.md` - Comprehensive Kubernetes deployment guide
-- `PROJECT-STRUCTURE.md` - Detailed project architecture
+Luxe-Jewelry-Store/
+├── 📁 auth-service/          # Authentication microservice
+├── 📁 backend/               # Products & orders API
+├── 📁 jewelry-store/         # React frontend
+├── 📁 luxe-jewelry-chart/    # Helm chart for K8s deployment
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   ├── templates/
+│   └── README.md
+├── 📁 k8s/                   # Raw Kubernetes manifests
+│   ├── deployments/
+│   ├── base/
+│   └── scripts/
+├── 📁 docs/                  # Documentation
+│   ├── HELM_INTEGRATION_GUIDE.md
+│   ├── HELM_QUICK_REFERENCE.md
+│   ├── JENKINS-KUBERNETES-SETUP.md
+│   └── PROJECT-STRUCTURE.md
+├── 📁 scripts/               # Utility scripts
+│   ├── start-ingress-tunnel.ps1
+│   └── find-nexus-volume.ps1
+├── 📄 Jenkinsfile            # CI/CD pipeline
+├── 📄 docker-compose.yml     # Docker Compose config
+└── 📄 README.md              # This file
+```

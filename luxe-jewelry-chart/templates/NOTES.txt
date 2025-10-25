@@ -1,0 +1,47 @@
+╔════════════════════════════════════════════════════════════════╗
+║          🎉 Luxe Jewelry Store Successfully Deployed! 🎉       ║
+╚════════════════════════════════════════════════════════════════╝
+
+📋 Release Information:
+   Name:      {{ .Release.Name }}
+   Namespace: {{ .Values.global.namespace }}
+   Chart:     {{ .Chart.Name }} v{{ .Chart.Version }}
+
+🚀 Deployed Services:
+{{- if .Values.frontend.enabled }}
+   ✅ Frontend:     {{ .Values.frontend.replicaCount }} replicas
+{{- end }}
+{{- if .Values.backend.enabled }}
+   ✅ Backend:      {{ .Values.backend.replicaCount }} replicas
+{{- end }}
+{{- if .Values.authService.enabled }}
+   ✅ Auth Service: {{ .Values.authService.replicaCount }} replicas
+{{- end }}
+
+🌐 Access Your Application:
+
+{{- if .Values.ingress.enabled }}
+   1️⃣  Start the Ingress tunnel (Admin PowerShell):
+      minikube service ingress-nginx-controller -n ingress-nginx
+
+   2️⃣  Access your app at:
+      http://{{ .Values.ingress.host }}:XXXXX
+      (Port number will be shown when tunnel starts)
+{{- end }}
+
+📊 Check Deployment Status:
+   kubectl get pods -n {{ .Values.global.namespace }}
+   kubectl get svc -n {{ .Values.global.namespace }}
+   kubectl get ingress -n {{ .Values.global.namespace }}
+
+🔄 Upgrade the deployment:
+   helm upgrade {{ .Release.Name }} ./luxe-jewelry-chart
+
+🗑️  Uninstall:
+   helm uninstall {{ .Release.Name }} -n {{ .Values.global.namespace }}
+
+📚 More info:
+   helm status {{ .Release.Name }} -n {{ .Values.global.namespace }}
+   helm get values {{ .Release.Name }} -n {{ .Values.global.namespace }}
+
+Thank you for using Helm! 🎉

@@ -1,0 +1,14 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: luxe-jewelry-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+{{- range $key, $value := .Values.configMap.data }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}

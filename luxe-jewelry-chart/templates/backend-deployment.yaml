@@ -1,0 +1,75 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.backend.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.backend.name }}
+    version: {{ .Values.backend.image.tag | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.backend.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.backend.name }}
+        version: {{ .Values.backend.image.tag | quote }}
+    spec:
+      containers:
+      - name: {{ .Values.backend.name }}
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.backend.service.targetPort }}
+          protocol: TCP
+        env:
+        {{- range .Values.backend.env }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: luxe-jewelry-config
+        resources:
+          {{- toYaml .Values.backend.resources | nindent 10 }}
+        {{- with .Values.backend.healthProbes }}
+        livenessProbe:
+          httpGet:
+            path: {{ .liveness.path }}
+            port: {{ .liveness.port }}
+          initialDelaySeconds: {{ .liveness.initialDelaySeconds }}
+          periodSeconds: {{ .liveness.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: {{ .readiness.path }}
+            port: {{ .readiness.port }}
+          initialDelaySeconds: {{ .readiness.initialDelaySeconds }}
+          periodSeconds: {{ .readiness.periodSeconds }}
+        {{- end }}
+      imagePullSecrets:
+      {{- range .Values.imagePullSecrets }}
+      - name: {{ .name }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.backend.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.backend.name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: {{ .Values.backend.service.type }}
+  ports:
+  - port: {{ .Values.backend.service.port }}
+    targetPort: {{ .Values.backend.service.targetPort }}
+    protocol: TCP
+  selector:
+    app: {{ .Values.backend.name }}
+{{- end }}

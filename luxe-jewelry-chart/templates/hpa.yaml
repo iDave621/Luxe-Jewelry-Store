@@ -1,0 +1,8 @@
+{{/* Frontend HPA */}}
+{{- include "luxe-jewelry.hpa" (merge (dict "serviceName" "frontend") .) }}
+---
+{{/* Backend HPA */}}
+{{- include "luxe-jewelry.hpa" (merge (dict "serviceName" "backend") .) }}
+---
+{{/* Auth Service HPA */}}
+{{- include "luxe-jewelry.hpa" (merge (dict "serviceName" "authService") .) }}
