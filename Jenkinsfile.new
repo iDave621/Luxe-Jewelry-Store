@@ -1,0 +1,254 @@
+// Modular Jenkins Pipeline for Luxe Jewelry Store
+// Using centralized configuration and separate pipeline modules
+
+// Load configuration and utilities
+def config
+def changeDetection
+def buildService
+def securityScan
+def pushToRegistry
+def helmDeploy
+
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'kubernetes'
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins: agent
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+    command:
+    - dockerd-entrypoint.sh
+    args:
+    - "--insecure-registry=host.minikube.internal:8082"
+    - "--insecure-registry=host.minikube.internal:8081"
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run
+  - name: docker-client
+    image: docker:24-cli
+    command:
+    - cat
+    tty: true
+    env:
+    - name: DOCKER_HOST
+      value: tcp://localhost:2375
+  - name: kubectl
+    image: alpine/k8s:1.28.3
+    command:
+    - cat
+    tty: true
+  volumes:
+  - name: docker-sock
+    emptyDir: {}
+'''
+        }
+    }
+    
+    options {
+        buildDiscarder(logRotator(daysToKeepStr: '30'))
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    
+    stages {
+        stage('Initialize') {
+            steps {
+                script {
+                    echo "🚀 Initializing pipeline..."
+                    
+                    // Load configuration and utilities
+                    config = load('jenkins/config.groovy').JenkinsConfig
+                    def ChangeDetection = load('jenkins/changeDetection.groovy')
+                    changeDetection = new ChangeDetection(this)
+                    buildService = load('jenkins/pipelines/buildService.groovy')
+                    securityScan = load('jenkins/pipelines/securityScan.groovy')
+                    pushToRegistry = load('jenkins/pipelines/pushToRegistry.groovy')
+                    helmDeploy = load('jenkins/pipelines/helmDeploy.groovy')
+                    
+                    echo "✅ Configuration loaded"
+                    echo "Registry: ${config.NEXUS_REGISTRY}"
+                    echo "Namespace: ${config.K8S_NAMESPACE}"
+                }
+            }
+        }
+        
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git config --global --add safe.directory ${WORKSPACE}'
+            }
+        }
+        
+        stage('Detect Changes') {
+            steps {
+                script {
+                    echo "🔍 Detecting changes..."
+                    
+                    // Detect what changed
+                    def changes = changeDetection.detectChanges()
+                    changeDetection.printChangeSummary(changes)
+                    
+                    // Store for later stages
+                    env.CHANGES_AUTH = changes['auth-service'].toString()
+                    env.CHANGES_BACKEND = changes['backend'].toString()
+                    env.CHANGES_FRONTEND = changes['frontend'].toString()
+                    env.CHANGES_HELM = changes['helm'].toString()
+                    
+                    def changedServices = changeDetection.getChangedServices(changes)
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    env.VERSION = "1.0.${BUILD_NUMBER}"
+                    
+                    echo "Services to build: ${env.CHANGED_SERVICES}"
+                }
+            }
+        }
+        
+        stage('Build Services') {
+            steps {
+                script {
+                    def servicesToBuild = env.CHANGED_SERVICES.split(',').findAll { it.trim() }
+                    
+                    if (servicesToBuild.isEmpty()) {
+                        echo "⏭️  No services to build"
+                    } else {
+                        echo "🔨 Building ${servicesToBuild.size()} service(s) in parallel..."
+                        
+                        // Build services in parallel
+                        def parallelBuilds = [:]
+                        servicesToBuild.each { serviceName ->
+                            def service = serviceName.trim()
+                            parallelBuilds[service] = {
+                                buildService.buildImage(this, config, service, env.VERSION)
+                            }
+                        }
+                        parallel parallelBuilds
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            when {
+                expression { env.CHANGED_SERVICES != '' }
+            }
+            steps {
+                script {
+                    echo "🔒 Running security scans in parallel..."
+                    def servicesToScan = env.CHANGED_SERVICES.split(',').findAll { it.trim() }
+                    
+                    // Run scans in parallel
+                    def parallelScans = [:]
+                    servicesToScan.each { serviceName ->
+                        def service = serviceName.trim()
+                        parallelScans[service] = {
+                            securityScan.scanImage(this, config, service, env.VERSION)
+                        }
+                    }
+                    parallel parallelScans
+                }
+            }
+        }
+        
+        stage('Push to Registries') {
+            when {
+                expression { env.CHANGED_SERVICES != '' }
+            }
+            parallel {
+                stage('Push to Docker Hub') {
+                    steps {
+                        script {
+                            echo "📤 Pushing to Docker Hub..."
+                            def servicesToPush = env.CHANGED_SERVICES.split(',').findAll { it.trim() }
+                            
+                            pushToRegistry.pushAllToDockerHub(this, config, servicesToPush, env.VERSION)
+                        }
+                    }
+                }
+                
+                stage('Push to Nexus') {
+                    steps {
+                        script {
+                            echo "📤 Pushing to Nexus..."
+                            def servicesToPush = env.CHANGED_SERVICES.split(',').findAll { it.trim() }
+                            
+                            pushToRegistry.pushAllToNexus(this, config, servicesToPush, env.VERSION)
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy with Helm') {
+            when {
+                expression { 
+                    env.CHANGED_SERVICES != '' || env.CHANGES_HELM == 'true'
+                }
+            }
+            steps {
+                script {
+                    echo "🚀 Deploying to Kubernetes with Helm..."
+                    helmDeploy.deployWithHelm(this, config, env.VERSION)
+                }
+            }
+        }
+        
+        stage('Verify Deployment') {
+            when {
+                expression { 
+                    env.CHANGED_SERVICES != '' || env.CHANGES_HELM == 'true'
+                }
+            }
+            steps {
+                script {
+                    echo "✅ Verifying deployment..."
+                    container('kubectl') {
+                        sh """
+                            echo "Waiting for pods to be ready..."
+                            kubectl wait --for=condition=ready pod \
+                                -l app.kubernetes.io/instance=${config.HELM_RELEASE_NAME} \
+                                -n ${config.HELM_NAMESPACE} \
+                                --timeout=300s || true
+                            
+                            echo ""
+                            echo "=== Final Status ==="
+                            kubectl get all -n ${config.HELM_NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ Pipeline completed successfully!"
+            echo "Version: ${env.VERSION}"
+            echo "Services built: ${env.CHANGED_SERVICES}"
+        }
+        failure {
+            echo "❌ Pipeline failed!"
+            script {
+                if (env.CHANGES_HELM == 'true') {
+                    echo "Consider rolling back Helm deployment"
+                }
+            }
+        }
+        always {
+            echo "🧹 Cleaning up..."
+            cleanWs()
+        }
+    }
+}
